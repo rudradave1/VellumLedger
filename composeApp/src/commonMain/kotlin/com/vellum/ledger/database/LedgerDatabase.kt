@@ -2,6 +2,7 @@ package com.vellum.ledger.database
 
 import com.vellum.ledger.domain.LedgerSnapshot
 import com.vellum.ledger.domain.LedgerTransaction
+import com.vellum.ledger.domain.LedgerSettings
 import com.vellum.ledger.domain.SyncQueueItem
 import kotlinx.coroutines.flow.StateFlow
 
@@ -17,6 +18,12 @@ interface LedgerDatabase {
     suspend fun markSyncing(transactionId: String)
 
     suspend fun markFailed(transactionId: String)
+
+    suspend fun markPending(transactionId: String)
+
+    suspend fun updateSettings(transform: (LedgerSettings) -> LedgerSettings)
+
+    suspend fun clearAll()
 }
 
 expect fun createLedgerDatabase(): LedgerDatabase

@@ -17,6 +17,12 @@ enum class QueueStatus {
     Done,
 }
 
+data class LedgerSettings(
+    val autoSync: Boolean = true,
+    val isDarkMode: Boolean = false,
+    val lastSyncAtMillis: Long? = null,
+)
+
 data class LedgerTransaction(
     val id: String,
     val amount: Double,
@@ -44,6 +50,7 @@ data class LedgerAnalytics(
 data class LedgerSnapshot(
     val transactions: List<LedgerTransaction> = emptyList(),
     val queueItems: List<SyncQueueItem> = emptyList(),
+    val settings: LedgerSettings = LedgerSettings(),
 ) {
     val analytics: LedgerAnalytics
         get() {

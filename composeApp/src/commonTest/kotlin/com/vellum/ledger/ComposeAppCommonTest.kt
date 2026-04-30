@@ -2,6 +2,7 @@ package com.vellum.ledger
 
 import com.vellum.ledger.database.LedgerDatabase
 import com.vellum.ledger.domain.LedgerSnapshot
+import com.vellum.ledger.domain.LedgerSettings
 import com.vellum.ledger.domain.LedgerTransaction
 import com.vellum.ledger.domain.QueueStatus
 import com.vellum.ledger.domain.SyncQueueItem
@@ -84,6 +85,7 @@ private class FakeLedgerDatabase : LedgerDatabase {
         mutableState.value = LedgerSnapshot(
             transactions = mutableState.value.transactions + transaction,
             queueItems = mutableState.value.queueItems + queueItem,
+            settings = mutableState.value.settings,
         )
     }
 
@@ -98,6 +100,39 @@ private class FakeLedgerDatabase : LedgerDatabase {
             queueItems = mutableState.value.queueItems.map {
                 if (it.id == queueItemId) it.copy(status = QueueStatus.Done) else it
             },
+            settings = mutableState.value.settings,
         )
+    }
+
+    override suspend fun markSyncing(transactionId: String) {
+        mutableState.value = mutableState.value.copy(
+            transactions = mutableState.value.transactions.map {
+                if (it.id == transactionId) it.copy(syncStatus = SyncStatus.Syncing) else it
+            },
+        )
+    }
+
+    override suspend fun markFailed(transactionId: String) {
+        mutableState.value = mutableState.value.copy(
+            transactions = mutableState.value.transactions.map {
+                if (it.id == transactionId) it.copy(syncStatus = SyncStatus.Failed) else it
+            },
+        )
+    }
+
+    override suspend fun markPending(transactionId: String) {
+        mutableState.value = mutableState.value.copy(
+            transactions = mutableState.value.transactions.map {
+                if (it.id == transactionId) it.copy(syncStatus = SyncStatus.Pending) else it
+            },
+        )
+    }
+
+    override suspend fun updateSettings(transform: (LedgerSettings) -> LedgerSettings) {
+        mutableState.value = mutableState.value.copy(settings = transform(mutableState.value.settings))
+    }
+
+    override suspend fun clearAll() {
+        mutableState.value = LedgerSnapshot(settings = mutableState.value.settings)
     }
 }

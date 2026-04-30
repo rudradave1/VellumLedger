@@ -6,6 +6,7 @@ import com.vellum.ledger.database.LedgerDatabase
 import com.vellum.ledger.database.createLedgerDatabase
 import com.vellum.ledger.domain.LedgerSnapshot
 import com.vellum.ledger.domain.LedgerTransaction
+import com.vellum.ledger.domain.LedgerSettings
 import com.vellum.ledger.domain.QueueStatus
 import com.vellum.ledger.domain.SyncQueueItem
 import com.vellum.ledger.domain.SyncStatus
@@ -26,6 +27,7 @@ class LedgerRepository(
         category: String,
         note: String,
     ) {
+        require(amount > 0.0) { "Amount must be > 0" }
         val now = currentTimeMillis()
         val transactionId = newLedgerId()
         val transaction = LedgerTransaction(
@@ -48,5 +50,28 @@ class LedgerRepository(
         database.insertTransactionWithQueue(transaction, queueItem)
     }
 
-    suspend fun syncNow(): SyncResult = syncWorker.processQueue()
+    suspend fun syncNow(): SyncResult {
+        val result = syncWorker.processQueue()
+        if (result.synced > 0) {
+            val now = currentTimeMillis()
+            database.updateSettings { it.copy(lastSyncAtMillis = now) }
+        }
+        return result
+    }
+
+    suspend fun setAutoSync(enabled: Boolean) {
+        database.updateSettings { it.copy(autoSync = enabled) }
+    }
+
+    suspend fun setDarkMode(enabled: Boolean) {
+        database.updateSettings { it.copy(isDarkMode = enabled) }
+    }
+
+    suspend fun retryTransaction(transactionId: String) {
+        database.markPending(transactionId)
+    }
+
+    suspend fun clearAll() {
+        database.clearAll()
+    }
 }
