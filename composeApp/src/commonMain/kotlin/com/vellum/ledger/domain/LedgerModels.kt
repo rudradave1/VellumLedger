@@ -1,0 +1,65 @@
+package com.vellum.ledger.domain
+
+enum class TransactionType {
+    Income,
+    Expense,
+}
+
+enum class SyncStatus {
+    Pending,
+    Syncing,
+    Synced,
+    Failed,
+}
+
+enum class QueueStatus {
+    Pending,
+    Done,
+}
+
+data class LedgerTransaction(
+    val id: String,
+    val amount: Double,
+    val type: TransactionType,
+    val category: String,
+    val note: String,
+    val createdAt: Long,
+    val syncStatus: SyncStatus,
+)
+
+data class SyncQueueItem(
+    val id: String,
+    val entityId: String,
+    val operationType: String,
+    val createdAt: Long,
+    val status: QueueStatus,
+)
+
+data class LedgerAnalytics(
+    val totalIncome: Double,
+    val totalExpense: Double,
+    val currentBalance: Double,
+)
+
+data class LedgerSnapshot(
+    val transactions: List<LedgerTransaction> = emptyList(),
+    val queueItems: List<SyncQueueItem> = emptyList(),
+) {
+    val analytics: LedgerAnalytics
+        get() {
+            val income = transactions
+                .filter { it.type == TransactionType.Income }
+                .sumOf { it.amount }
+            val expense = transactions
+                .filter { it.type == TransactionType.Expense }
+                .sumOf { it.amount }
+            return LedgerAnalytics(
+                totalIncome = income,
+                totalExpense = expense,
+                currentBalance = income - expense,
+            )
+        }
+
+    val pendingCount: Int
+        get() = transactions.count { it.syncStatus == SyncStatus.Pending }
+}
