@@ -94,4 +94,7 @@ android {
 
 dependencies {
     debugImplementation(libs.compose.uiTooling)
+    debugImplementation(libs.compose.test.manifest)
+    androidTestImplementation(libs.compose.test.junit4)
+    androidTestImplementation(libs.androidx.test.runner)
 }

@@ -1,35 +1,60 @@
-This is a Kotlin Multiplatform project targeting Android, iOS.
+# VellumLedger
 
-* [/composeApp](./composeApp/src) is for code that will be shared across your Compose Multiplatform applications.
-  It contains several subfolders:
-  - [commonMain](./composeApp/src/commonMain/kotlin) is for code that’s common for all targets.
-  - Other folders are for Kotlin code that will be compiled for only the platform indicated in the folder name.
-    For example, if you want to use Apple’s CoreCrypto for the iOS part of your Kotlin app,
-    the [iosMain](./composeApp/src/iosMain/kotlin) folder would be the right place for such calls.
-    Similarly, if you want to edit the Desktop (JVM) specific part, the [jvmMain](./composeApp/src/jvmMain/kotlin)
-    folder is the appropriate location.
+VellumLedger is a modern, privacy-focused personal finance and expense tracking application built with **Kotlin Multiplatform** and **Compose Multiplatform**. It allows users to manage their daily transactions, track multiple cards/accounts, and visualize their financial health with detailed analytics across both Android and iOS platforms.
 
-* [/iosApp](./iosApp/iosApp) contains iOS applications. Even if you’re sharing your UI with Compose Multiplatform,
-  you need this entry point for your iOS app. This is also where you should add SwiftUI code for your project.
+## ✨ Features
 
-### Build and Run Android Application
+*   **Comprehensive Dashboard**: Real-time overview of your total balance, income, and expenses.
+*   **Transaction Management**: Easily add, categorize, and track your daily spending and earnings.
+*   **Card & Account Tracking**: Manage multiple payment methods with custom colors and balances.
+*   **Financial Analytics**: Visual charts and generated reports to help you understand your spending patterns.
+*   **Data Export**: Export your transaction history to CSV for external record-keeping.
+*   **Dark Mode Support**: A beautiful, theme-aware UI that adapts to your system preferences.
+*   **Multi-Currency**: Support for different currency symbols tailored to your region.
+*   **Offline First**: Built with SQLDelight for robust local storage, ensuring your data is always accessible.
 
-To build and run the development version of the Android app, use the run configuration from the run widget
-in your IDE’s toolbar or build it directly from the terminal:
-- on macOS/Linux
-  ```shell
-  ./gradlew :composeApp:assembleDebug
-  ```
-- on Windows
-  ```shell
-  .\gradlew.bat :composeApp:assembleDebug
-  ```
+## 🛠 Tech Stack
 
-### Build and Run iOS Application
+-   **Language**: [Kotlin](https://kotlinlang.org/)
+-   **UI Framework**: [Compose Multiplatform](https://www.jetbrains.com/lp/compose-multiplatform/)
+-   **Architecture**: MVVM (Model-View-ViewModel) with shared logic in `commonMain`.
+-   **Database**: [SQLDelight](https://cashapp.github.io/sqldelight/) for local persistence.
+-   **Concurrency**: [Kotlinx Coroutines](https://github.com/Kotlin/kotlinx.coroutines).
+-   **Date/Time**: [Kotlinx Datetime](https://github.com/Kotlin/kotlinx-datetime).
+-   **Dependency Injection/ViewModel**: AndroidX Lifecycle ViewModel (Compose Multiplatform compatible).
 
-To build and run the development version of the iOS app, use the run configuration from the run widget
-in your IDE’s toolbar or open the [/iosApp](./iosApp) directory in Xcode and run it from there.
+## 📁 Project Structure
 
----
+*   `/composeApp`: Shared UI and logic.
+    *   `commonMain`: Core business logic, ViewModels, database schemas, and Compose UI.
+    *   `androidMain`: Android-specific drivers and platform implementations.
+    *   `iosMain`: iOS-specific drivers and platform implementations.
+*   `/iosApp`: The native iOS entry point (SwiftUI wrapper).
 
-Learn more about [Kotlin Multiplatform](https://www.jetbrains.com/help/kotlin-multiplatform-dev/get-started.html)…
+## 🚀 Getting Started
+
+### Prerequisites
+-   Android Studio (latest version)
+-   Xcode (for iOS development)
+-   JDK 17 or higher
+
+### Build and Run
+
+#### Android
+1.  Open the project in Android Studio.
+2.  Select the `composeApp` run configuration.
+3.  Click **Run**.
+Alternatively, via terminal:
+```bash
+./gradlew :composeApp:assembleDebug
+```
+
+#### iOS
+1.  Open the `iosApp/iosApp.xcworkspace` in Xcode.
+2.  Select your target device or simulator.
+3.  Click **Run**.
+*Note: You can also run the iOS app directly from Android Studio using the Kotlin Multiplatform Mobile plugin.*
+
+## 📄 License
+
+This project is licensed under the MIT License - see the LICENSE file for details.

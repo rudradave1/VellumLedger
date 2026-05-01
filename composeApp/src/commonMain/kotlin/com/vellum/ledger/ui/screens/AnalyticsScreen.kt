@@ -102,18 +102,33 @@ fun AnalyticsScreen(
 
             item {
                 val now = currentTimeMillis()
-                val filteredTransactions = remember(selectedTab, ledger.transactions) {
+                val stats = remember(selectedTab, ledger.transactions) {
                     val periodStart = when (selectedTab) {
                         0 -> now - (7 * 24 * 60 * 60 * 1000L) // Weekly
                         1 -> now - (30 * 24 * 60 * 60 * 1000L) // Monthly
                         else -> now - (365 * 24 * 60 * 60 * 1000L) // Yearly
                     }
-                    ledger.transactions.filter { it.createdAt >= periodStart }
+                    val prevPeriodStart = periodStart - (now - periodStart)
+                    
+                    val currentRange = ledger.transactions.filter { it.createdAt >= periodStart }
+                    val prevRange = ledger.transactions.filter { it.createdAt in prevPeriodStart until periodStart }
+                    
+                    val curInc = currentRange.filter { it.type == TransactionType.Income }.sumOf { it.amount }
+                    val curExp = currentRange.filter { it.type == TransactionType.Expense }.sumOf { it.amount }
+                    
+                    val prevInc = prevRange.filter { it.type == TransactionType.Income }.sumOf { it.amount }
+                    val prevExp = prevRange.filter { it.type == TransactionType.Expense }.sumOf { it.amount }
+                    
+                    val incChange = if (prevInc > 0) ((curInc - prevInc) / prevInc * 100).toInt() else 0
+                    val expChange = if (prevExp > 0) ((curExp - prevExp) / prevExp * 100).toInt() else 0
+                    
+                    listOf(curInc, curExp, incChange.toDouble(), expChange.toDouble())
                 }
-                
-                val periodIncome = filteredTransactions.filter { it.type == TransactionType.Income }.sumOf { it.amount }
-                val periodExpense = filteredTransactions.filter { it.type == TransactionType.Expense }.sumOf { it.amount }
-                val periodBalance = periodIncome - periodExpense
+
+                val periodIncome = stats[0]
+                val periodExpense = stats[1]
+                val incomeChange = stats[2].toInt()
+                val expenseChange = stats[3].toInt()
 
                 Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
                     Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -122,17 +137,19 @@ fun AnalyticsScreen(
                             amount = periodIncome,
                             color = Color(0xFF10B981),
                             modifier = Modifier.weight(1f),
-                            isIncrease = true
+                            isIncrease = incomeChange >= 0,
+                            percentageText = "${if (incomeChange >= 0) "+" else ""}$incomeChange% from last period"
                         )
                         SummaryCard(
                             label = "Expense",
                             amount = periodExpense,
                             color = Color(0xFFEF4444),
                             modifier = Modifier.weight(1f),
-                            isIncrease = false
+                            isIncrease = expenseChange < 0,
+                            percentageText = "${if (expenseChange >= 0) "+" else ""}$expenseChange% from last period"
                         )
                     }
-                    BalanceHighlightCard(periodBalance)
+                    BalanceHighlightCard(periodIncome - periodExpense)
                 }
             }
 
@@ -186,40 +203,45 @@ fun AnalyticsScreen(
 }
 
 @Composable
-fun SummaryCard(label: String, amount: Double, color: Color, modifier: Modifier, isIncrease: Boolean) {
+fun SummaryCard(label: String, amount: Double, color: Color, modifier: Modifier, isIncrease: Boolean, percentageText: String = "") {
     val currency = LocalCurrency.current
     Surface(
         modifier = modifier,
-        shape = RoundedCornerShape(20.dp),
+        shape = RoundedCornerShape(24.dp),
         color = MaterialTheme.colorScheme.surface,
         border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.05f))
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(label, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f), fontSize = 13.sp, fontWeight = FontWeight.Medium)
-                Spacer(Modifier.width(4.dp))
-                Icon(
-                    imageVector = if (isIncrease) Icons.Default.ArrowUpward else Icons.Default.ArrowDownward,
-                    contentDescription = null,
-                    tint = color,
-                    modifier = Modifier.size(12.dp)
-                )
+                Box(modifier = Modifier.size(24.dp).background(color.copy(alpha = 0.1f), CircleShape), contentAlignment = Alignment.Center) {
+                    Icon(
+                        imageVector = if (isIncrease) Icons.Default.ArrowUpward else Icons.Default.ArrowDownward,
+                        contentDescription = null,
+                        tint = color,
+                        modifier = Modifier.size(14.dp)
+                    )
+                }
+                Spacer(Modifier.width(8.dp))
+                Text(label, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f), fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
             }
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(12.dp))
             Text(
                 text = formatMoney(amount, currency),
-                fontSize = if (amount > 1_000_000) 16.sp else 20.sp,
-                fontWeight = FontWeight.ExtraBold,
+                fontSize = if (amount > 1_000_000) 18.sp else 22.sp,
+                fontWeight = FontWeight.Black,
                 color = MaterialTheme.colorScheme.onSurface,
                 maxLines = 1,
                 overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
             )
-            Text(
-                if (isIncrease) "+14.5% from last month" else "-2.4% from last month", 
-                fontSize = 10.sp, 
-                color = color.copy(alpha = 0.8f),
-                fontWeight = FontWeight.Bold
-            )
+            if (percentageText.isNotEmpty()) {
+                Text(
+                    percentageText, 
+                    fontSize = 10.sp, 
+                    color = color.copy(alpha = 0.8f),
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(top = 4.dp)
+                )
+            }
         }
     }
 }
@@ -305,39 +327,78 @@ fun TrendChart(ledger: LedgerSnapshot, selectedTab: Int) {
 
     val maxVal = barData.flatMap { listOf(it.first, it.second) }.maxOrNull()?.coerceAtLeast(100.0) ?: 100.0
 
-    Row(
-        modifier = Modifier.fillMaxWidth().height(180.dp).padding(vertical = 8.dp),
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-        verticalAlignment = Alignment.Bottom
+    Surface(
+        modifier = Modifier.fillMaxWidth().height(240.dp),
+        shape = RoundedCornerShape(24.dp),
+        color = MaterialTheme.colorScheme.surface,
+        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.05f))
     ) {
-        barData.forEach { (income, expense) ->
-            Column(modifier = Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
-                Box(modifier = Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.BottomCenter) {
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.Bottom) {
-                        Box(
-                            modifier = Modifier
-                                .weight(1f)
-                                .fillMaxHeight((income / maxVal).toFloat().coerceIn(0.05f, 1f))
-                                .clip(RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp))
-                                .background(Color(0xFF10B981).copy(alpha = 0.8f))
-                        )
-                        Box(
-                            modifier = Modifier
-                                .weight(1f)
-                                .fillMaxHeight((expense / maxVal).toFloat().coerceIn(0.05f, 1f))
-                                .clip(RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp))
-                                .background(Color(0xFFEF4444).copy(alpha = 0.8f))
+        Column(modifier = Modifier.padding(20.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth().weight(1f),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalAlignment = Alignment.Bottom
+            ) {
+                barData.forEach { (income, expense) ->
+                    Column(modifier = Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
+                        Box(modifier = Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.BottomCenter) {
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.Bottom) {
+                                val incomeHeight = (income / maxVal).toFloat().coerceIn(0.05f, 1f)
+                                val expenseHeight = (expense / maxVal).toFloat().coerceIn(0.05f, 1f)
+                                
+                                Box(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .fillMaxHeight(incomeHeight)
+                                        .clip(RoundedCornerShape(topStart = 6.dp, topEnd = 6.dp))
+                                        .background(
+                                            Brush.verticalGradient(
+                                                colors = listOf(Color(0xFF10B981), Color(0xFF10B981).copy(alpha = 0.3f))
+                                            )
+                                        )
+                                )
+                                Box(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .fillMaxHeight(expenseHeight)
+                                        .clip(RoundedCornerShape(topStart = 6.dp, topEnd = 6.dp))
+                                        .background(
+                                            Brush.verticalGradient(
+                                                colors = listOf(Color(0xFFEF4444), Color(0xFFEF4444).copy(alpha = 0.3f))
+                                            )
+                                        )
+                                )
+                            }
+                        }
+                        Spacer(Modifier.height(8.dp))
+                        val label = if (selectedTab == 0) "Day" else "Period"
+                        Text(
+                            text = label,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
                         )
                     }
                 }
-                Spacer(Modifier.height(8.dp))
-                Text(
-                    text = if (selectedTab == 0) "Day" else "Period",
-                    fontSize = 10.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
-                )
+            }
+            
+            Spacer(Modifier.height(16.dp))
+            
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
+                ChartLegendItem("Income", Color(0xFF10B981))
+                Spacer(Modifier.width(24.dp))
+                ChartLegendItem("Expense", Color(0xFFEF4444))
             }
         }
+    }
+}
+
+@Composable
+fun ChartLegendItem(label: String, color: Color) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Box(Modifier.size(8.dp).background(color, CircleShape))
+        Spacer(Modifier.width(6.dp))
+        Text(label, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, fontWeight = FontWeight.Medium)
     }
 }
 

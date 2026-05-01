@@ -1,7 +1,7 @@
 package com.vellum.ledger.ui.screens
 
-import com.vellum.ledger.ui.theme.LocalCurrency
 import com.vellum.ledger.ui.util.formatMoney
+import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -65,11 +65,19 @@ fun HomeScreen(
                 },
                 actions = {
                     IconButton(onClick = onSyncClick, enabled = !isSyncing) {
+                        val rotation by animateFloatAsState(
+                            targetValue = if (isSyncing) 360f else 0f,
+                            animationSpec = if (isSyncing) {
+                                infiniteRepeatable(tween(1000, easing = LinearEasing), RepeatMode.Restart)
+                            } else {
+                                spring()
+                            }
+                        )
                         Icon(
                             Icons.Outlined.Sync, 
                             contentDescription = "Sync",
                             tint = if (isSyncing) MaterialTheme.colorScheme.primary.copy(alpha = 0.5f) else MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(24.dp).rotate(if (isSyncing) 180f else 0f)
+                            modifier = Modifier.size(24.dp).rotate(rotation)
                         )
                     }
                 },
@@ -117,18 +125,58 @@ fun HomeScreen(
                 )
             }
 
-            if (ledger.transactions.isEmpty()) {
+            if (isSyncing && ledger.transactions.isEmpty()) {
+                items(5) {
+                    TransactionSkeleton()
+                }
+            } else if (ledger.transactions.isEmpty()) {
                 item {
                     EmptyState(onAddClick)
                 }
             } else {
-                items(ledger.transactions.reversed()) { transaction ->
-                    TransactionListItem(
-                        transaction = transaction,
-                        onRetry = { onRetryTransaction(transaction.id) }
-                    )
+                items(ledger.transactions.reversed(), key = { it.id }) { transaction ->
+                    Box(modifier = Modifier.animateItem()) {
+                        TransactionListItem(
+                            transaction = transaction,
+                            onRetry = { onRetryTransaction(transaction.id) }
+                        )
+                    }
                 }
             }
+        }
+    }
+}
+
+@Composable
+fun TransactionSkeleton() {
+    val infiniteTransition = rememberInfiniteTransition()
+    val alpha by infiniteTransition.animateFloat(
+        initialValue = 0.3f,
+        targetValue = 0.7f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1000, easing = LinearEasing),
+            repeatMode = RepeatMode.Reverse
+        )
+    )
+
+    Surface(
+        modifier = Modifier.fillMaxWidth().height(80.dp),
+        shape = RoundedCornerShape(20.dp),
+        color = MaterialTheme.colorScheme.surface.copy(alpha = alpha),
+        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.05f))
+    ) {
+        Row(
+            modifier = Modifier.padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(modifier = Modifier.size(48.dp).background(Color.Gray.copy(alpha = 0.2f), CircleShape))
+            Spacer(Modifier.width(16.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Box(modifier = Modifier.width(100.dp).height(16.dp).background(Color.Gray.copy(alpha = 0.2f), RoundedCornerShape(4.dp)))
+                Spacer(Modifier.height(8.dp))
+                Box(modifier = Modifier.width(150.dp).height(12.dp).background(Color.Gray.copy(alpha = 0.1f), RoundedCornerShape(4.dp)))
+            }
+            Box(modifier = Modifier.width(60.dp).height(20.dp).background(Color.Gray.copy(alpha = 0.2f), RoundedCornerShape(4.dp)))
         }
     }
 }
@@ -138,9 +186,9 @@ fun TotalBalanceCard(balance: Double, income: Double, expense: Double) {
     val currency = LocalCurrency.current
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(24.dp),
+        shape = RoundedCornerShape(28.dp),
         color = MaterialTheme.colorScheme.primary,
-        shadowElevation = 12.dp
+        shadowElevation = 16.dp
     ) {
         Box(
             modifier = Modifier
@@ -148,60 +196,93 @@ fun TotalBalanceCard(balance: Double, income: Double, expense: Double) {
                     Brush.linearGradient(
                         colors = listOf(
                             Color(0xFF3525CD),
+                            Color(0xFF4F46E5),
                             Color(0xFF6366F1)
                         )
                     )
                 )
-                .padding(24.dp)
+                .padding(28.dp)
         ) {
+            // Decorative circles
+            Box(modifier = Modifier.size(150.dp).offset(x = 200.dp, y = (-80).dp).background(Color.White.copy(alpha = 0.05f), CircleShape))
+            Box(modifier = Modifier.size(100.dp).offset(x = 240.dp, y = 100.dp).background(Color.White.copy(alpha = 0.03f), CircleShape))
+
             Column {
-                Text(
-                    "Total Balance", 
-                    color = Color.White.copy(alpha = 0.8f), 
-                    fontSize = 14.sp, 
-                    fontWeight = FontWeight.Medium
-                )
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        "Total Balance", 
+                        color = Color.White.copy(alpha = 0.8f), 
+                        fontSize = 15.sp, 
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Icon(Icons.Outlined.Visibility, contentDescription = null, tint = Color.White.copy(alpha = 0.5f), modifier = Modifier.size(20.dp))
+                }
+                
+                Spacer(Modifier.height(8.dp))
+                
                 Text(
                     text = formatMoney(balance, currency),
-                    fontSize = if (balance > 1_000_000) 28.sp else 42.sp,
+                    fontSize = if (balance > 1_000_000) 32.sp else 48.sp,
                     fontWeight = FontWeight.Black,
                     color = Color.White,
-                    modifier = Modifier.padding(vertical = 4.dp),
-                    letterSpacing = (-1).sp,
+                    letterSpacing = (-1.5).sp,
                     maxLines = 1,
                     overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                 )
                 
-                Spacer(Modifier.height(24.dp))
+                Spacer(Modifier.height(32.dp))
 
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(24.dp)
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(Color.White.copy(alpha = 0.1f))
+                        .padding(16.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    Column {
-                        Text("Income", color = Color.White.copy(alpha = 0.7f), fontSize = 12.sp)
-                        Text(
-                            "+" + formatMoney(income, currency), 
-                            color = Color(0xFF4ADE80), 
-                            fontSize = 16.sp, 
-                            fontWeight = FontWeight.Bold,
-                            maxLines = 1,
-                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
-                        )
-                    }
-                    Column {
-                        Text("Expense", color = Color.White.copy(alpha = 0.7f), fontSize = 12.sp)
-                        Text(
-                            "-" + formatMoney(expense, currency), 
-                            color = Color(0xFFF87171), 
-                            fontSize = 16.sp, 
-                            fontWeight = FontWeight.Bold,
-                            maxLines = 1,
-                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
-                        )
-                    }
+                    BalanceStatItem(
+                        label = "Income",
+                        amount = income,
+                        icon = Icons.Outlined.ArrowDownward,
+                        color = Color(0xFF4ADE80),
+                        currency = currency
+                    )
+                    
+                    Box(modifier = Modifier.width(1.dp).height(40.dp).background(Color.White.copy(alpha = 0.1f)))
+                    
+                    BalanceStatItem(
+                        label = "Expense",
+                        amount = expense,
+                        icon = Icons.Outlined.ArrowUpward,
+                        color = Color(0xFFF87171),
+                        currency = currency
+                    )
                 }
             }
+        }
+    }
+}
+
+@Composable
+fun BalanceStatItem(label: String, amount: Double, icon: ImageVector, color: Color, currency: String) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Box(
+            modifier = Modifier.size(32.dp).background(Color.White.copy(alpha = 0.15f), CircleShape),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(icon, contentDescription = null, tint = color, modifier = Modifier.size(18.dp))
+        }
+        Spacer(Modifier.width(12.dp))
+        Column {
+            Text(label, color = Color.White.copy(alpha = 0.6f), fontSize = 11.sp, fontWeight = FontWeight.Medium)
+            Text(
+                formatMoney(amount, currency), 
+                color = Color.White, 
+                fontSize = 16.sp, 
+                fontWeight = FontWeight.Bold,
+                maxLines = 1,
+                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+            )
         }
     }
 }

@@ -42,9 +42,9 @@ fun CardsScreen(
     Scaffold(
         topBar = {
             CenterAlignedTopAppBar(
-                title = { Text("My Cards", fontWeight = FontWeight.Bold) },
+                title = { Text("My Cards", fontWeight = FontWeight.ExtraBold, fontSize = 22.sp) },
                 colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.background
+                    containerColor = Color.Transparent
                 )
             )
         },
@@ -52,27 +52,74 @@ fun CardsScreen(
             FloatingActionButton(
                 onClick = { showAddDialog = true },
                 containerColor = MaterialTheme.colorScheme.primary,
-                contentColor = MaterialTheme.colorScheme.onPrimary,
-                shape = RoundedCornerShape(16.dp)
+                contentColor = Color.White,
+                shape = RoundedCornerShape(16.dp),
+                elevation = FloatingActionButtonDefaults.elevation(8.dp)
             ) {
                 Icon(Icons.Default.Add, contentDescription = "Add Card")
             }
-        }
+        },
+        containerColor = MaterialTheme.colorScheme.background
     ) { paddingValues ->
-        if (cards.isEmpty()) {
-            EmptyCardsState { showAddDialog = true }
-        } else {
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(paddingValues)
-                    .padding(horizontal = 16.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp),
-                contentPadding = PaddingValues(bottom = 24.dp)
-            ) {
-                items(cards) { card ->
-                    CreditCardItem(card = card, onDelete = { onDeleteCard(card.id) })
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(paddingValues)
+        ) {
+            if (cards.isEmpty()) {
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    EmptyCardsState { showAddDialog = true }
                 }
+            } else {
+                val pagerState = androidx.compose.foundation.pager.rememberPagerState(pageCount = { cards.size })
+                
+                Column(
+                    modifier = Modifier.fillMaxWidth().padding(top = 24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    androidx.compose.foundation.pager.HorizontalPager(
+                        state = pagerState,
+                        modifier = Modifier.fillMaxWidth(),
+                        contentPadding = PaddingValues(horizontal = 32.dp),
+                        pageSpacing = 16.dp
+                    ) { page ->
+                        CreditCardItem(card = cards[page], onDelete = { onDeleteCard(cards[page].id) })
+                    }
+                    
+                    Spacer(Modifier.height(24.dp))
+                    
+                    // Pager Indicator
+                    Row(
+                        Modifier
+                            .height(10.dp)
+                            .fillMaxWidth(),
+                        horizontalArrangement = Arrangement.Center
+                    ) {
+                        repeat(cards.size) { iteration ->
+                            val color = if (pagerState.currentPage == iteration) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+                            Box(
+                                modifier = Modifier
+                                    .padding(horizontal = 4.dp)
+                                    .clip(CircleShape)
+                                    .background(color)
+                                    .size(if (pagerState.currentPage == iteration) 24.dp else 8.dp, 8.dp)
+                            )
+                        }
+                    }
+                }
+                
+                Spacer(Modifier.height(32.dp))
+                
+                // Card Details / Stats Section
+                Text(
+                    "Card Details",
+                    modifier = Modifier.padding(horizontal = 24.dp),
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                
+                val selectedCard = cards[pagerState.currentPage]
+                CardDetailList(selectedCard, modifier = Modifier.padding(24.dp))
             }
         }
     }
@@ -85,6 +132,33 @@ fun CardsScreen(
                 showAddDialog = false
             }
         )
+    }
+}
+
+@Composable
+fun CardDetailList(card: LedgerCard, modifier: Modifier = Modifier) {
+    val currency = com.vellum.ledger.ui.theme.LocalCurrency.current
+    Surface(
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(24.dp),
+        color = MaterialTheme.colorScheme.surface,
+        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.05f))
+    ) {
+        Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+            DetailItem("Card Balance", com.vellum.ledger.ui.util.formatMoney(card.balance, currency), MaterialTheme.colorScheme.primary)
+            HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.05f))
+            DetailItem("Card Type", card.cardType.name, MaterialTheme.colorScheme.onSurface)
+            HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.05f))
+            DetailItem("Holder Name", card.cardName, MaterialTheme.colorScheme.onSurface)
+        }
+    }
+}
+
+@Composable
+fun DetailItem(label: String, value: String, valueColor: Color) {
+    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+        Text(label, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 14.sp)
+        Text(value, fontWeight = FontWeight.Bold, fontSize = 14.sp, color = valueColor)
     }
 }
 
