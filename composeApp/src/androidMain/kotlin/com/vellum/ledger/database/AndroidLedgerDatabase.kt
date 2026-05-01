@@ -7,7 +7,7 @@ actual fun createLedgerDatabase(): LedgerDatabase {
     val driver = AndroidSqliteDriver(
         schema = LedgerDb.Schema,
         context = AndroidLedgerContext.appContext,
-        name = "vellum_ledger.db",
+        name = "vellum_ledger_v2.db",
     )
     return SqlDelightLedgerDatabase(driver)
 }

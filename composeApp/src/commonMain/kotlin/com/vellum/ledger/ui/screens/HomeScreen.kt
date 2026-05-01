@@ -9,15 +9,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.CheckCircle
-import androidx.compose.material.icons.outlined.ErrorOutline
-import androidx.compose.material.icons.outlined.Schedule
-import androidx.compose.material.icons.outlined.ShoppingCart
-import androidx.compose.material.icons.outlined.Sync
-import androidx.compose.material.icons.outlined.Payments
-import androidx.compose.material.icons.outlined.ElectricBolt
-import androidx.compose.material.icons.outlined.DirectionsCar
-import androidx.compose.material.icons.outlined.Restaurant
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -25,6 +18,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -50,39 +45,46 @@ fun HomeScreen(
             CenterAlignedTopAppBar(
                 title = {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("👛", fontSize = 24.sp)
+                        Icon(
+                            Icons.Outlined.Payments, 
+                            contentDescription = null, 
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(28.dp)
+                        )
                         Spacer(Modifier.width(8.dp))
                         Text(
                             "LedgerSync",
-                            color = MaterialTheme.colorScheme.primary,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 20.sp
+                            color = MaterialTheme.colorScheme.onSurface,
+                            fontWeight = FontWeight.ExtraBold,
+                            fontSize = 22.sp,
+                            letterSpacing = (-0.5).sp
                         )
                     }
                 },
                 actions = {
                     IconButton(onClick = onSyncClick, enabled = !isSyncing) {
-                        Text(
-                            if (isSyncing) "⌛" else "↻", 
-                            fontSize = 24.sp, 
-                            color = if (isSyncing) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.primary,
-                            fontWeight = FontWeight.Bold
+                        Icon(
+                            Icons.Outlined.Sync, 
+                            contentDescription = "Sync",
+                            tint = if (isSyncing) MaterialTheme.colorScheme.primary.copy(alpha = 0.5f) else MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(24.dp).rotate(if (isSyncing) 180f else 0f)
                         )
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surface
+                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
+                    containerColor = Color.Transparent
                 )
             )
         },
         floatingActionButton = {
             FloatingActionButton(
                 onClick = onAddClick,
-                containerColor = MaterialTheme.colorScheme.primaryContainer,
-                contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                shape = RoundedCornerShape(16.dp)
+                containerColor = MaterialTheme.colorScheme.primary,
+                contentColor = Color.White,
+                shape = RoundedCornerShape(16.dp),
+                elevation = FloatingActionButtonDefaults.elevation(8.dp)
             ) {
-                Text("+", fontSize = 28.sp, fontWeight = FontWeight.Bold)
+                Icon(Icons.Default.Add, contentDescription = "Add", modifier = Modifier.size(24.dp))
             }
         },
         containerColor = MaterialTheme.colorScheme.background
@@ -91,8 +93,9 @@ fun HomeScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
-                .padding(horizontal = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+                .padding(horizontal = 20.dp),
+            verticalArrangement = Arrangement.spacedBy(20.dp),
+            contentPadding = PaddingValues(top = 16.dp, bottom = 100.dp)
         ) {
             item {
                 TotalBalanceCard(
@@ -105,7 +108,7 @@ fun HomeScreen(
             item {
                 Text(
                     "Recent Transactions",
-                    fontSize = 20.sp,
+                    fontSize = 18.sp,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier.padding(top = 8.dp)
@@ -124,44 +127,70 @@ fun HomeScreen(
                     )
                 }
             }
-
-            item { Spacer(Modifier.height(80.dp)) }
         }
     }
 }
 
 @Composable
 fun TotalBalanceCard(balance: Double, income: Double, expense: Double) {
-    Card(
+    Surface(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-        )
+        shape = RoundedCornerShape(24.dp),
+        color = MaterialTheme.colorScheme.primary,
+        shadowElevation = 12.dp
     ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Text("Total Balance", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 16.sp, fontWeight = FontWeight.Medium)
-            Text(
-                text = formatMoney(balance),
-                fontSize = 36.sp,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.padding(vertical = 4.dp)
-            )
-            
-            HorizontalDivider(
-                modifier = Modifier.padding(vertical = 12.dp),
-                color = MaterialTheme.colorScheme.outline.copy(alpha = 0.1f)
-            )
+        Box(
+            modifier = Modifier
+                .background(
+                    Brush.linearGradient(
+                        colors = listOf(
+                            Color(0xFF3525CD),
+                            Color(0xFF6366F1)
+                        )
+                    )
+                )
+                .padding(24.dp)
+        ) {
+            Column {
+                Text(
+                    "Total Balance", 
+                    color = Color.White.copy(alpha = 0.8f), 
+                    fontSize = 14.sp, 
+                    fontWeight = FontWeight.Medium
+                )
+                Text(
+                    text = formatMoney(balance),
+                    fontSize = 42.sp,
+                    fontWeight = FontWeight.Black,
+                    color = Color.White,
+                    modifier = Modifier.padding(vertical = 4.dp),
+                    letterSpacing = (-1).sp
+                )
+                
+                Spacer(Modifier.height(16.dp))
 
-            Row(modifier = Modifier.fillMaxWidth()) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text("Income", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
-                    Text("+" + formatMoney(income), color = Secondary, fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
-                }
-                Column(modifier = Modifier.weight(1f)) {
-                    Text("Expense", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
-                    Text("-" + formatMoney(expense), color = Error, fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(24.dp)
+                ) {
+                    Column {
+                        Text("Income", color = Color.White.copy(alpha = 0.7f), fontSize = 12.sp)
+                        Text(
+                            "+" + formatMoney(income), 
+                            color = Color(0xFF4ADE80), 
+                            fontSize = 18.sp, 
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                    Column {
+                        Text("Expense", color = Color.White.copy(alpha = 0.7f), fontSize = 12.sp)
+                        Text(
+                            "-" + formatMoney(expense), 
+                            color = Color(0xFFF87171), 
+                            fontSize = 18.sp, 
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
                 }
             }
         }
@@ -174,12 +203,10 @@ fun TransactionListItem(
     onRetry: () -> Unit,
 ) {
     Surface(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
-            .clickable { },
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(20.dp),
         color = MaterialTheme.colorScheme.surface,
-        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.1f))
+        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.05f))
     ) {
         Row(
             modifier = Modifier.padding(16.dp),
@@ -187,34 +214,44 @@ fun TransactionListItem(
         ) {
             Box(
                 modifier = Modifier
-                    .size(44.dp)
-                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.25f), CircleShape),
+                    .size(48.dp)
+                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.1f), CircleShape),
                 contentAlignment = Alignment.Center
             ) {
-                val (icon, tint) = categoryIconAndTint(transaction.category)
+                val (icon, _) = categoryIconAndTint(transaction.category)
                 Icon(
                     imageVector = icon,
                     contentDescription = null,
-                    tint = tint,
-                    modifier = Modifier.size(22.dp),
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(24.dp),
                 )
             }
 
             Spacer(Modifier.width(16.dp))
 
             Column(modifier = Modifier.weight(1f)) {
-                Text(transaction.category, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface, fontSize = 16.sp)
-                Text(transaction.note.ifBlank { "No description" }, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(
+                    transaction.category, 
+                    fontWeight = FontWeight.Bold, 
+                    color = MaterialTheme.colorScheme.onSurface, 
+                    fontSize = 16.sp
+                )
+                Text(
+                    transaction.note.ifBlank { "Uncategorized" }, 
+                    fontSize = 13.sp, 
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                )
             }
 
             Column(horizontalAlignment = Alignment.End) {
                 Text(
                     text = (if (transaction.type == TransactionType.Income) "+" else "-") + formatMoney(transaction.amount),
-                    fontWeight = FontWeight.Bold,
+                    fontWeight = FontWeight.ExtraBold,
                     fontSize = 16.sp,
-                    color = if (transaction.type == TransactionType.Income) Secondary else Error
+                    color = if (transaction.type == TransactionType.Income) Color(0xFF10B981) else Color(0xFFEF4444)
                 )
-                SyncStatusIcon(
+                Spacer(Modifier.height(4.dp))
+                SyncStatusIndicator(
                     status = transaction.syncStatus,
                     onRetry = onRetry,
                 )
@@ -224,36 +261,21 @@ fun TransactionListItem(
 }
 
 @Composable
-fun SyncStatusIcon(
+fun SyncStatusIndicator(
     status: SyncStatus,
     onRetry: () -> Unit,
 ) {
-    val infiniteTransition = rememberInfiniteTransition()
-    val rotation by infiniteTransition.animateFloat(
-        initialValue = 0f,
-        targetValue = 360f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(1000, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart
-        )
-    )
-
     when (status) {
-        SyncStatus.Synced -> Icon(Icons.Outlined.CheckCircle, contentDescription = null, tint = Secondary, modifier = Modifier.size(18.dp))
-        SyncStatus.Pending -> Icon(Icons.Outlined.Schedule, contentDescription = null, tint = Pending, modifier = Modifier.size(18.dp))
-        SyncStatus.Syncing -> Icon(
-            Icons.Outlined.Sync,
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.size(18.dp).rotate(rotation),
-        )
+        SyncStatus.Synced -> Icon(Icons.Outlined.CheckCircle, contentDescription = null, tint = Color(0xFF10B981), modifier = Modifier.size(16.dp))
+        SyncStatus.Pending -> Icon(Icons.Outlined.Schedule, contentDescription = null, tint = Color(0xFFF59E0B), modifier = Modifier.size(16.dp))
+        SyncStatus.Syncing -> CircularProgressIndicator(modifier = Modifier.size(14.dp), strokeWidth = 2.dp, color = MaterialTheme.colorScheme.primary)
         SyncStatus.Failed -> Row(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.clickable(onClick = onRetry),
         ) {
-            Icon(Icons.Outlined.ErrorOutline, contentDescription = null, tint = Error, modifier = Modifier.size(18.dp))
-            Spacer(Modifier.width(6.dp))
-            Text("Retry", fontSize = 12.sp, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold)
+            Icon(Icons.Outlined.ErrorOutline, contentDescription = null, tint = Color(0xFFEF4444), modifier = Modifier.size(16.dp))
+            Spacer(Modifier.width(4.dp))
+            Text("Retry", fontSize = 11.sp, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
         }
     }
 }

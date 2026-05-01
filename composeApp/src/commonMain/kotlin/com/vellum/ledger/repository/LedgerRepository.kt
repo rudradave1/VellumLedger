@@ -4,13 +4,7 @@ import com.vellum.ledger.data.currentTimeMillis
 import com.vellum.ledger.data.newLedgerId
 import com.vellum.ledger.database.LedgerDatabase
 import com.vellum.ledger.database.createLedgerDatabase
-import com.vellum.ledger.domain.LedgerSnapshot
-import com.vellum.ledger.domain.LedgerTransaction
-import com.vellum.ledger.domain.LedgerSettings
-import com.vellum.ledger.domain.QueueStatus
-import com.vellum.ledger.domain.SyncQueueItem
-import com.vellum.ledger.domain.SyncStatus
-import com.vellum.ledger.domain.TransactionType
+import com.vellum.ledger.domain.*
 import com.vellum.ledger.sync.SyncResult
 import com.vellum.ledger.sync.SyncWorker
 import kotlinx.coroutines.flow.StateFlow
@@ -48,6 +42,30 @@ class LedgerRepository(
         )
 
         database.insertTransactionWithQueue(transaction, queueItem)
+    }
+
+    suspend fun addCard(
+        name: String,
+        number: String,
+        type: CardType,
+        expiry: String,
+        balance: Double,
+        hexColor: String,
+    ) {
+        val card = LedgerCard(
+            id = newLedgerId(),
+            cardName = name,
+            cardNumber = number,
+            cardType = type,
+            expiry = expiry,
+            balance = balance,
+            hexColor = hexColor,
+        )
+        database.insertCard(card)
+    }
+
+    suspend fun deleteCard(cardId: String) {
+        database.deleteCard(cardId)
     }
 
     suspend fun syncNow(): SyncResult {

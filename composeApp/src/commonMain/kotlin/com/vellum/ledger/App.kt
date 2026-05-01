@@ -5,16 +5,21 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.material3.*
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.vellum.ledger.repository.LedgerRepository
 import com.vellum.ledger.ui.screens.AddTransactionScreen
 import com.vellum.ledger.ui.screens.AnalyticsScreen
+import com.vellum.ledger.ui.screens.CardsScreen
 import com.vellum.ledger.ui.screens.HomeScreen
 import com.vellum.ledger.ui.screens.SettingsScreen
 import com.vellum.ledger.ui.theme.*
@@ -32,7 +37,7 @@ enum class Screen {
 @Composable
 fun App() {
     val repository = remember { LedgerRepository() }
-    val viewModel = remember { LedgerViewModel(repository) }
+    val viewModel: LedgerViewModel = viewModel { LedgerViewModel(repository) }
     
     val ledger by viewModel.ledger.collectAsState()
     val isSyncing by viewModel.isSyncing.collectAsState()
@@ -65,9 +70,13 @@ fun App() {
                         onRetryTransaction = { id -> viewModel.retryTransaction(id) },
                     )
                     Screen.Cards -> {
-                         Box(Modifier.fillMaxSize()) {
-                             Text("Cards Screen", Modifier.padding(16.dp), color = MaterialTheme.colorScheme.onBackground)
-                         }
+                        CardsScreen(
+                            cards = ledger.cards,
+                            onAddCard = { name, number, type, expiry, balance, color ->
+                                viewModel.addCard(name, number, type, expiry, balance, color)
+                            },
+                            onDeleteCard = { id -> viewModel.deleteCard(id) }
+                        )
                     }
                     Screen.Analytics -> AnalyticsScreen(ledger = ledger)
                     Screen.AddTransaction -> AddTransactionScreen(
@@ -85,6 +94,7 @@ fun App() {
                             onAutoSyncChange = { viewModel.toggleAutoSync(it) },
                             lastSyncedMessage = lastSyncedMessage,
                             onSyncNow = { viewModel.syncNow() },
+                            isSyncing = isSyncing,
                             onExportCSV = { /* Implement CSV Export */ },
                             onClearData = { viewModel.clearAll() },
                             onBack = { currentScreen = Screen.Home }
@@ -107,10 +117,10 @@ fun BottomNavigationBar(
         modifier = Modifier.height(80.dp)
     ) {
         val items = listOf(
-            Triple(Screen.Home, "Home", "🏠"),
-            Triple(Screen.Cards, "Cards", "💳"),
-            Triple(Screen.Analytics, "Charts", "📊"),
-            Triple(Screen.Settings, "Settings", "⚙️")
+            Triple(Screen.Home, "Home", Icons.Outlined.Home),
+            Triple(Screen.Cards, "Cards", Icons.Outlined.CreditCard),
+            Triple(Screen.Analytics, "Analytics", Icons.Outlined.PieChart),
+            Triple(Screen.Settings, "Settings", Icons.Outlined.Settings)
         )
 
         items.forEach { (screen, label, icon) ->
@@ -119,9 +129,10 @@ fun BottomNavigationBar(
                 selected = selected,
                 onClick = { onScreenSelected(screen) },
                 icon = { 
-                    Text(
+                    Icon(
                         icon, 
-                        fontSize = 24.sp
+                        contentDescription = label,
+                        modifier = Modifier.size(24.dp)
                     ) 
                 },
                 label = { 

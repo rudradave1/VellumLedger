@@ -21,6 +21,16 @@ CREATE TABLE settings (
   value_ TEXT NOT NULL
 );
 
+CREATE TABLE cards (
+  id TEXT NOT NULL PRIMARY KEY,
+  card_name TEXT NOT NULL,
+  card_number TEXT NOT NULL,
+  card_type TEXT NOT NULL,
+  expiry TEXT NOT NULL,
+  balance REAL NOT NULL,
+  hex_color TEXT NOT NULL
+);
+
 selectAllTransactions:
 SELECT *
 FROM transactions
@@ -37,6 +47,10 @@ FROM sync_queue
 WHERE status = 'PENDING'
 ORDER BY created_at ASC;
 
+selectAllCards:
+SELECT *
+FROM cards;
+
 insertTransaction:
 INSERT INTO transactions(id, amount, type, category, note, created_at, sync_status)
 VALUES (?, ?, ?, ?, ?, ?, ?);
@@ -44,6 +58,10 @@ VALUES (?, ?, ?, ?, ?, ?, ?);
 insertQueueItem:
 INSERT INTO sync_queue(id, entity_id, operation_type, created_at, status)
 VALUES (?, ?, ?, ?, ?);
+
+insertCard:
+INSERT INTO cards(id, card_name, card_number, card_type, expiry, balance, hex_color)
+VALUES (?, ?, ?, ?, ?, ?, ?);
 
 updateTransactionSyncStatus:
 UPDATE transactions
@@ -63,6 +81,10 @@ upsertSetting:
 INSERT OR REPLACE INTO settings(key, value_)
 VALUES (?, ?);
 
+deleteCard:
+DELETE FROM cards WHERE id = ?;
+
 clearAll:
 DELETE FROM sync_queue;
 DELETE FROM transactions;
+DELETE FROM cards;

@@ -8,12 +8,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.CalendarToday
-import androidx.compose.material.icons.outlined.Commute
-import androidx.compose.material.icons.outlined.EditNote
-import androidx.compose.material.icons.outlined.ReceiptLong
-import androidx.compose.material.icons.outlined.Restaurant
-import androidx.compose.material.icons.outlined.ShoppingBag
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -43,10 +39,6 @@ fun AddTransactionScreen(
     var type by remember { mutableStateOf(TransactionType.Expense) }
     var selectedCategory by remember { mutableStateOf("Food") }
     var note by remember { mutableStateOf("") }
-    var dateText by remember {
-        val now = Instant.fromEpochMilliseconds(currentTimeMillis()).toLocalDateTime(TimeZone.currentSystemDefault()).date
-        mutableStateOf(now.toString()) // yyyy-MM-dd
-    }
 
     val categories = listOf(
         Category("Food", Icons.Outlined.Restaurant),
@@ -58,16 +50,14 @@ fun AddTransactionScreen(
     Scaffold(
         topBar = {
             CenterAlignedTopAppBar(
-                title = { Text("Add Transaction", fontWeight = FontWeight.Bold, fontSize = 18.sp) },
+                title = { Text("Add Transaction", fontWeight = FontWeight.ExtraBold, fontSize = 20.sp) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Text("←", fontSize = 24.sp, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+                        Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = MaterialTheme.colorScheme.primary)
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surface,
-                    titleContentColor = MaterialTheme.colorScheme.onSurface,
-                    navigationIconContentColor = MaterialTheme.colorScheme.primary
+                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
+                    containerColor = Color.Transparent
                 )
             )
         },
@@ -77,40 +67,76 @@ fun AddTransactionScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
-                .padding(16.dp),
+                .padding(24.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             SegmentedTypeControl(
                 type = type,
                 onTypeChange = { type = it },
-                modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                modifier = Modifier.fillMaxWidth().padding(bottom = 32.dp),
             )
 
-            Spacer(Modifier.height(16.dp))
-
-            AmountCard(
-                amountText = amountText,
-                onAmountChange = { amountText = it },
-                type = type,
-                modifier = Modifier.fillMaxWidth(),
+            Text(
+                "AMOUNT",
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                letterSpacing = 1.5.sp
             )
 
-            Spacer(Modifier.height(16.dp))
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.padding(vertical = 16.dp)
+            ) {
+                Text(
+                    "$",
+                    fontSize = 48.sp,
+                    fontWeight = FontWeight.Black,
+                    color = if (type == TransactionType.Expense) Color(0xFFEF4444) else Color(0xFF10B981)
+                )
+                Spacer(Modifier.width(8.dp))
+                BasicTextField(
+                    value = amountText,
+                    onValueChange = { if (it.isEmpty() || it.toDoubleOrNull() != null) amountText = it },
+                    textStyle = LocalTextStyle.current.copy(
+                        fontSize = 64.sp,
+                        fontWeight = FontWeight.Black,
+                        color = if (type == TransactionType.Expense) Color(0xFFEF4444) else Color(0xFF10B981),
+                        textAlign = TextAlign.Start,
+                    ),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                    modifier = Modifier.widthIn(min = 100.dp),
+                    decorationBox = { inner ->
+                        if (amountText.isBlank()) {
+                            Text(
+                                "0.00",
+                                fontSize = 64.sp,
+                                fontWeight = FontWeight.Black,
+                                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f),
+                            )
+                        }
+                        inner()
+                    },
+                )
+            }
+
+            Spacer(Modifier.height(32.dp))
 
             Column(
                 modifier = Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
                 Text(
-                    "Category",
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    "CATEGORY",
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                    letterSpacing = 1.5.sp
                 )
                 FlowRow(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
                     categories.forEach { category ->
                         CategoryChip(
@@ -120,48 +146,31 @@ fun AddTransactionScreen(
                             onClick = { selectedCategory = category.name },
                         )
                     }
+                    Box(
+                        modifier = Modifier
+                            .size(40.dp)
+                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f), CircleShape)
+                            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.1f), CircleShape)
+                            .clickable { },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(Icons.Default.Add, contentDescription = "Add category", modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.outline)
+                    }
                 }
+
+                Spacer(Modifier.height(8.dp))
 
                 OutlinedTextField(
                     value = note,
                     onValueChange = { note = it },
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(8.dp),
-                    placeholder = { Text("What was this for?") },
-                    leadingIcon = {
-                        Icon(
-                            imageVector = Icons.Outlined.EditNote,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.outline,
-                        )
-                    },
-                    label = { Text("Note") },
+                    modifier = Modifier.fillMaxWidth().height(120.dp),
+                    shape = RoundedCornerShape(16.dp),
+                    placeholder = { Text("Note (Optional)", color = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)) },
+                    label = null,
                     colors = OutlinedTextFieldDefaults.colors(
-                        unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.25f),
-                        focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.25f),
-                        unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f),
-                        focusedBorderColor = MaterialTheme.colorScheme.primary,
-                    ),
-                )
-
-                OutlinedTextField(
-                    value = dateText,
-                    onValueChange = { dateText = it },
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(8.dp),
-                    placeholder = { Text("yyyy-MM-dd") },
-                    leadingIcon = {
-                        Icon(
-                            imageVector = Icons.Outlined.CalendarToday,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.outline,
-                        )
-                    },
-                    label = { Text("Date") },
-                    colors = OutlinedTextFieldDefaults.colors(
-                        unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.25f),
-                        focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.25f),
-                        unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f),
+                        unfocusedContainerColor = Color.Transparent,
+                        focusedContainerColor = Color.Transparent,
+                        unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.1f),
                         focusedBorderColor = MaterialTheme.colorScheme.primary,
                     ),
                 )
@@ -174,13 +183,13 @@ fun AddTransactionScreen(
                     val amount = amountText.toDoubleOrNull() ?: 0.0
                     if (amount > 0) onSave(amount, type, selectedCategory, note)
                 },
-                modifier = Modifier.fillMaxWidth().height(48.dp),
-                shape = RoundedCornerShape(8.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
-                elevation = ButtonDefaults.buttonElevation(defaultElevation = 4.dp)
+                modifier = Modifier.fillMaxWidth().height(56.dp),
+                shape = RoundedCornerShape(16.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
+                elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp)
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("✓", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                    Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(20.dp))
                     Spacer(Modifier.width(8.dp))
                     Text("Save Transaction", fontSize = 16.sp, fontWeight = FontWeight.Bold)
                 }

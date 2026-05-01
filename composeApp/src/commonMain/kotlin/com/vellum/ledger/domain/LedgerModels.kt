@@ -17,6 +17,22 @@ enum class QueueStatus {
     Done,
 }
 
+enum class CardType {
+    Visa,
+    MasterCard,
+    Amex,
+}
+
+data class LedgerCard(
+    val id: String,
+    val cardName: String,
+    val cardNumber: String, // Last 4 digits or masked
+    val cardType: CardType,
+    val expiry: String,
+    val balance: Double = 0.0,
+    val hexColor: String,
+)
+
 data class LedgerSettings(
     val autoSync: Boolean = true,
     val isDarkMode: Boolean = false,
@@ -49,6 +65,7 @@ data class LedgerAnalytics(
 
 data class LedgerSnapshot(
     val transactions: List<LedgerTransaction> = emptyList(),
+    val cards: List<LedgerCard> = emptyList(),
     val queueItems: List<SyncQueueItem> = emptyList(),
     val settings: LedgerSettings = LedgerSettings(),
 ) {

@@ -1,12 +1,12 @@
 package com.vellum.ledger.ui.viewmodel
 
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import com.vellum.ledger.domain.CardType
 import com.vellum.ledger.domain.LedgerSnapshot
 import com.vellum.ledger.domain.TransactionType
 import com.vellum.ledger.data.currentTimeMillis
 import com.vellum.ledger.repository.LedgerRepository
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -15,8 +15,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
-class LedgerViewModel(private val repository: LedgerRepository) {
-    private val viewModelScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+class LedgerViewModel(private val repository: LedgerRepository) : ViewModel() {
 
     val ledger: StateFlow<LedgerSnapshot> = repository.ledger
 
@@ -73,6 +72,18 @@ class LedgerViewModel(private val repository: LedgerRepository) {
         viewModelScope.launch {
             repository.retryTransaction(transactionId)
             syncNow()
+        }
+    }
+
+    fun addCard(name: String, number: String, type: CardType, expiry: String, balance: Double, hexColor: String) {
+        viewModelScope.launch {
+            repository.addCard(name, number, type, expiry, balance, hexColor)
+        }
+    }
+
+    fun deleteCard(cardId: String) {
+        viewModelScope.launch {
+            repository.deleteCard(cardId)
         }
     }
 

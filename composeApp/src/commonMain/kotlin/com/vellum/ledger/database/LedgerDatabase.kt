@@ -1,5 +1,6 @@
 package com.vellum.ledger.database
 
+import com.vellum.ledger.domain.LedgerCard
 import com.vellum.ledger.domain.LedgerSnapshot
 import com.vellum.ledger.domain.LedgerTransaction
 import com.vellum.ledger.domain.LedgerSettings
@@ -22,6 +23,10 @@ interface LedgerDatabase {
     suspend fun markPending(transactionId: String)
 
     suspend fun updateSettings(transform: (LedgerSettings) -> LedgerSettings)
+
+    suspend fun insertCard(card: LedgerCard)
+
+    suspend fun deleteCard(cardId: String)
 
     suspend fun clearAll()
 }

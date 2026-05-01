@@ -4,6 +4,8 @@ import app.cash.sqldelight.coroutines.asFlow
 import app.cash.sqldelight.coroutines.mapToList
 import app.cash.sqldelight.db.SqlDriver
 import com.vellum.ledger.db.LedgerDb
+import com.vellum.ledger.domain.CardType
+import com.vellum.ledger.domain.LedgerCard
 import com.vellum.ledger.domain.LedgerSettings
 import com.vellum.ledger.domain.LedgerSnapshot
 import com.vellum.ledger.domain.LedgerTransaction
@@ -65,6 +67,25 @@ internal class SqlDelightLedgerDatabase(
                 }
             }
 
+    private val cardsFlow =
+        queries
+            .selectAllCards()
+            .asFlow()
+            .mapToList(Dispatchers.Default)
+            .map { rows ->
+                rows.map { row ->
+                    LedgerCard(
+                        id = row.id,
+                        cardName = row.card_name,
+                        cardNumber = row.card_number,
+                        cardType = row.card_type.toCardType(),
+                        expiry = row.expiry,
+                        balance = row.balance,
+                        hexColor = row.hex_color,
+                    )
+                }
+            }
+
     private val settingsFlow =
         queries
             .selectAllSettings()
@@ -80,9 +101,10 @@ internal class SqlDelightLedgerDatabase(
             }
 
     override val state: StateFlow<LedgerSnapshot> =
-        combine(transactionsFlow, queueFlow, settingsFlow) { transactions, queue, settings ->
+        combine(transactionsFlow, cardsFlow, queueFlow, settingsFlow) { transactions, cards, queue, settings ->
             LedgerSnapshot(
                 transactions = transactions,
+                cards = cards,
                 queueItems = queue,
                 settings = settings,
             )
@@ -181,6 +203,26 @@ internal class SqlDelightLedgerDatabase(
         }
     }
 
+    override suspend fun insertCard(card: LedgerCard) {
+        withContext(Dispatchers.Default) {
+            queries.insertCard(
+                id = card.id,
+                card_name = card.cardName,
+                card_number = card.cardNumber,
+                card_type = card.cardType.name,
+                expiry = card.expiry,
+                balance = card.balance,
+                hex_color = card.hexColor,
+            )
+        }
+    }
+
+    override suspend fun deleteCard(cardId: String) {
+        withContext(Dispatchers.Default) {
+            queries.deleteCard(cardId)
+        }
+    }
+
     override suspend fun clearAll() {
         withContext(Dispatchers.Default) {
             queries.transaction {
@@ -205,5 +247,11 @@ private fun String.toSyncStatus(): SyncStatus = when (uppercase()) {
 private fun String.toQueueStatus(): QueueStatus = when (uppercase()) {
     "DONE" -> QueueStatus.Done
     else -> QueueStatus.Pending
+}
+
+private fun String.toCardType(): CardType = when (uppercase()) {
+    "VISA" -> CardType.Visa
+    "MASTERCARD" -> CardType.MasterCard
+    else -> CardType.Amex
 }
 
