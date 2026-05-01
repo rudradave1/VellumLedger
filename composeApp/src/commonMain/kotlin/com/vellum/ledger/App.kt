@@ -44,10 +44,13 @@ fun App() {
     val isDarkMode by viewModel.isDarkMode.collectAsState()
     val autoSync by viewModel.autoSync.collectAsState()
     val lastSyncedMessage by viewModel.lastSyncedMessage.collectAsState()
+    val currency by viewModel.currency.collectAsState()
     
     var currentScreen by remember { mutableStateOf(Screen.Home) }
+    var exportCsvData by remember { mutableStateOf<String?>(null) }
+    var showReportDialog by remember { mutableStateOf(false) }
 
-    LedgerTheme(darkTheme = isDarkMode) {
+    LedgerTheme(darkTheme = isDarkMode, currency = currency) {
         Scaffold(
             bottomBar = {
                 if (currentScreen != Screen.AddTransaction) {
@@ -78,10 +81,13 @@ fun App() {
                             onDeleteCard = { id -> viewModel.deleteCard(id) }
                         )
                     }
-                    Screen.Analytics -> AnalyticsScreen(ledger = ledger)
+                    Screen.Analytics -> AnalyticsScreen(
+                        ledger = ledger,
+                        onViewReport = { showReportDialog = true }
+                    )
                     Screen.AddTransaction -> AddTransactionScreen(
-                        onSave = { amount, type, category, note ->
-                            viewModel.addTransaction(amount, type, category, note)
+                        onSave = { amount, type, category, note, timestamp ->
+                            viewModel.addTransaction(amount, type, category, note, timestamp)
                             currentScreen = Screen.Home
                         },
                         onBack = { currentScreen = Screen.Home }
@@ -95,14 +101,83 @@ fun App() {
                             lastSyncedMessage = lastSyncedMessage,
                             onSyncNow = { viewModel.syncNow() },
                             isSyncing = isSyncing,
-                            onExportCSV = { /* Implement CSV Export */ },
+                            onExportCSV = { 
+                                exportCsvData = viewModel.exportCSV()
+                            },
                             onClearData = { viewModel.clearAll() },
-                            onBack = { currentScreen = Screen.Home }
+                            onBack = { currentScreen = Screen.Home },
+                            onCurrencyChange = { viewModel.setCurrency(it) }
                         )
                     }
                 }
             }
         }
+    }
+
+    if (exportCsvData != null) {
+        AlertDialog(
+            onDismissRequest = { exportCsvData = null },
+            title = { Text("Export Data") },
+            text = {
+                Column {
+                    Text("CSV Data generated successfully.", fontWeight = FontWeight.Bold)
+                    Spacer(Modifier.height(8.dp))
+                    Surface(
+                        color = MaterialTheme.colorScheme.surfaceVariant,
+                        shape = RoundedCornerShape(8.dp),
+                        modifier = Modifier.fillMaxWidth().heightIn(max = 200.dp)
+                    ) {
+                        Text(
+                            exportCsvData!!,
+                            modifier = Modifier.padding(12.dp),
+                            fontSize = 12.sp,
+                            fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                Button(onClick = { exportCsvData = null }) {
+                    Text("Close")
+                }
+            }
+        )
+    }
+
+    if (showReportDialog) {
+        AlertDialog(
+            onDismissRequest = { showReportDialog = false },
+            title = { Text("Full Financial Report") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    val income = ledger.analytics.totalIncome
+                    val expense = ledger.analytics.totalExpense
+                    val balance = ledger.analytics.currentBalance
+                    
+                    ReportItem("Total Income", income, Color(0xFF10B981))
+                    ReportItem("Total Expense", expense, Color(0xFFEF4444))
+                    HorizontalDivider()
+                    ReportItem("Net Balance", balance, if (balance >= 0) Color(0xFF10B981) else Color(0xFFEF4444))
+                    
+                    Spacer(Modifier.height(8.dp))
+                    Text("Transaction Count: ${ledger.transactions.size}", fontSize = 14.sp)
+                }
+            },
+            confirmButton = {
+                Button(onClick = { showReportDialog = false }) {
+                    Text("Got it")
+                }
+            }
+        )
+    }
+}
+
+@Composable
+private fun ReportItem(label: String, amount: Double, color: Color) {
+    val currency = com.vellum.ledger.ui.theme.LocalCurrency.current
+    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+        Text(label, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(com.vellum.ledger.ui.util.formatMoney(amount, currency), fontWeight = FontWeight.Bold, color = color)
     }
 }
 

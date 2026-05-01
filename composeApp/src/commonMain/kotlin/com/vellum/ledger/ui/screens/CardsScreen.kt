@@ -24,6 +24,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.vellum.ledger.domain.CardType
 import com.vellum.ledger.domain.LedgerCard
+import com.vellum.ledger.ui.components.VellumTextField
+import com.vellum.ledger.ui.components.VellumButton
+import com.vellum.ledger.ui.components.ExpiryDateTransformation
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.KeyboardType
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -203,16 +208,72 @@ fun AddCardDialog(
     var selectedType by remember { mutableStateOf(CardType.Visa) }
     var selectedColor by remember { mutableStateOf("#1A1A1A") }
 
+    var numberError by remember { mutableStateOf<String?>(null) }
+    var expiryError by remember { mutableStateOf<String?>(null) }
+    var balanceError by remember { mutableStateOf<String?>(null) }
+
+    val isFormValid = name.isNotBlank() && 
+                      number.length == 4 && 
+                      expiry.length == 4 &&
+                      (balance.isEmpty() || balance.toDoubleOrNull() != null)
+
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Add New Card") },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text("Card Holder Name") }, modifier = Modifier.fillMaxWidth())
-                OutlinedTextField(value = number, onValueChange = { if (it.length <= 4) number = it }, label = { Text("Last 4 Digits") }, modifier = Modifier.fillMaxWidth())
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedTextField(value = expiry, onValueChange = { expiry = it }, label = { Text("Expiry (MM/YY)") }, modifier = Modifier.weight(1f))
-                    OutlinedTextField(value = balance, onValueChange = { balance = it }, label = { Text("Initial Balance") }, modifier = Modifier.weight(1f))
+            Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                VellumTextField(
+                    value = name, 
+                    onValueChange = { name = it }, 
+                    label = "Card Holder Name", 
+                    modifier = Modifier.fillMaxWidth(),
+                    isError = name.isBlank() && name.isNotEmpty()
+                )
+                VellumTextField(
+                    value = number, 
+                    onValueChange = { 
+                        if (it.length <= 4 && it.all { char -> char.isDigit() }) number = it 
+                        numberError = if (it.length < 4 && it.isNotEmpty()) "Need 4 digits" else null
+                    }, 
+                    label = "Last 4 Digits", 
+                    modifier = Modifier.fillMaxWidth(),
+                    isError = numberError != null,
+                    supportingText = numberError,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+                )
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    VellumTextField(
+                        value = expiry, 
+                        onValueChange = { 
+                            if (it.length <= 4 && it.all { char -> char.isDigit() }) {
+                                expiry = it
+                                expiryError = if (it.length == 4 && !it.matches(Regex("\\d{4}"))) "Invalid date" else null
+                            }
+                        }, 
+                        label = "Expiry (MM/YY)", 
+                        modifier = Modifier.weight(1f),
+                        isError = expiryError != null,
+                        supportingText = expiryError,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        visualTransformation = ExpiryDateTransformation(),
+                        placeholder = "MMYY"
+                    )
+                    VellumTextField(
+                        value = balance, 
+                        onValueChange = { 
+                            if (it.isEmpty() || it.toDoubleOrNull() != null) {
+                                balance = it
+                                balanceError = null
+                            } else {
+                                balanceError = "Invalid amount"
+                            }
+                        }, 
+                        label = "Initial Balance", 
+                        modifier = Modifier.weight(1f),
+                        isError = balanceError != null,
+                        supportingText = balanceError,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
+                    )
                 }
                 
                 Text("Card Type", style = MaterialTheme.typography.labelMedium)
@@ -242,14 +303,17 @@ fun AddCardDialog(
             }
         },
         confirmButton = {
-            Button(
+            VellumButton(
                 onClick = {
-                    onConfirm(name, number, selectedType, expiry, balance.toDoubleOrNull() ?: 0.0, selectedColor)
+                    if (isFormValid) {
+                        val formattedExpiry = expiry.take(2) + "/" + expiry.drop(2)
+                        onConfirm(name, number, selectedType, formattedExpiry, balance.toDoubleOrNull() ?: 0.0, selectedColor)
+                    }
                 },
-                enabled = name.isNotBlank() && number.length == 4 && expiry.isNotBlank()
-            ) {
-                Text("Add")
-            }
+                text = "Add Card",
+                enabled = isFormValid,
+                modifier = Modifier.fillMaxWidth()
+            )
         },
         dismissButton = {
             TextButton(onClick = onDismiss) { Text("Cancel") }

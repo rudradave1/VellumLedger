@@ -84,7 +84,14 @@ VALUES (?, ?);
 deleteCard:
 DELETE FROM cards WHERE id = ?;
 
-clearAll:
-DELETE FROM sync_queue;
+clearTransactions:
 DELETE FROM transactions;
+
+clearCards:
 DELETE FROM cards;
+
+clearQueue:
+DELETE FROM sync_queue;
+
+clearSettings:
+DELETE FROM settings;

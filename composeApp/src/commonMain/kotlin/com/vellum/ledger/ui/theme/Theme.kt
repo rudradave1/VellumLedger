@@ -3,7 +3,12 @@ package com.vellum.ledger.ui.theme
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
+
+val LocalCurrency = staticCompositionLocalOf { "USD ($)" }
+val LocalIsDarkMode = staticCompositionLocalOf { false }
 
 private val DarkColorScheme = darkColorScheme(
     primary = DarkPrimary,
@@ -54,12 +59,18 @@ private val LightColorScheme = lightColorScheme(
 @Composable
 fun LedgerTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
+    currency: String = "USD ($)",
     content: @Composable () -> Unit
 ) {
     val colorScheme = if (darkTheme) DarkColorScheme else LightColorScheme
 
-    MaterialTheme(
-        colorScheme = colorScheme,
-        content = content
-    )
+    CompositionLocalProvider(
+        LocalIsDarkMode provides darkTheme,
+        LocalCurrency provides currency
+    ) {
+        MaterialTheme(
+            colorScheme = colorScheme,
+            content = content
+        )
+    }
 }

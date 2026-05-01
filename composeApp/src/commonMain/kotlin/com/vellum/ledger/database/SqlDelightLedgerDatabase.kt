@@ -3,6 +3,7 @@ package com.vellum.ledger.database
 import app.cash.sqldelight.coroutines.asFlow
 import app.cash.sqldelight.coroutines.mapToList
 import app.cash.sqldelight.db.SqlDriver
+import com.vellum.ledger.data.currentTimeMillis
 import com.vellum.ledger.db.LedgerDb
 import com.vellum.ledger.domain.CardType
 import com.vellum.ledger.domain.LedgerCard
@@ -97,6 +98,7 @@ internal class SqlDelightLedgerDatabase(
                     autoSync = map["auto_sync"]?.toBooleanStrictOrNull() ?: true,
                     isDarkMode = map["dark_mode"]?.toBooleanStrictOrNull() ?: false,
                     lastSyncAtMillis = map["last_sync_at_millis"]?.toLongOrNull(),
+                    currency = map["currency"] ?: "USD ($)",
                 )
             }
 
@@ -199,6 +201,7 @@ internal class SqlDelightLedgerDatabase(
                 queries.upsertSetting("auto_sync", next.autoSync.toString())
                 queries.upsertSetting("dark_mode", next.isDarkMode.toString())
                 queries.upsertSetting("last_sync_at_millis", next.lastSyncAtMillis?.toString() ?: "")
+                queries.upsertSetting("currency", next.currency)
             }
         }
     }
@@ -226,7 +229,14 @@ internal class SqlDelightLedgerDatabase(
     override suspend fun clearAll() {
         withContext(Dispatchers.Default) {
             queries.transaction {
-                queries.clearAll()
+                println("SqlDelightLedgerDatabase: Starting Hard Clear...")
+                queries.clearTransactions()
+                queries.clearCards()
+                queries.clearQueue()
+                queries.clearSettings()
+                // Force a reactive update by upserting a clear timestamp
+                queries.upsertSetting("last_hard_clear", currentTimeMillis().toString())
+                println("SqlDelightLedgerDatabase: Hard Clear Successful.")
             }
         }
     }

@@ -1,5 +1,7 @@
 package com.vellum.ledger.ui.screens
 
+import com.vellum.ledger.ui.theme.LocalCurrency
+import com.vellum.ledger.ui.util.formatMoney
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -123,7 +125,7 @@ fun HomeScreen(
                 items(ledger.transactions.reversed()) { transaction ->
                     TransactionListItem(
                         transaction = transaction,
-                        onRetry = { onRetryTransaction(transaction.id) },
+                        onRetry = { onRetryTransaction(transaction.id) }
                     )
                 }
             }
@@ -133,6 +135,7 @@ fun HomeScreen(
 
 @Composable
 fun TotalBalanceCard(balance: Double, income: Double, expense: Double) {
+    val currency = LocalCurrency.current
     Surface(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(24.dp),
@@ -159,12 +162,14 @@ fun TotalBalanceCard(balance: Double, income: Double, expense: Double) {
                     fontWeight = FontWeight.Medium
                 )
                 Text(
-                    text = formatMoney(balance),
-                    fontSize = 42.sp,
+                    text = formatMoney(balance, currency),
+                    fontSize = if (balance > 1_000_000) 28.sp else 42.sp,
                     fontWeight = FontWeight.Black,
                     color = Color.White,
                     modifier = Modifier.padding(vertical = 4.dp),
-                    letterSpacing = (-1).sp
+                    letterSpacing = (-1).sp,
+                    maxLines = 1,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                 )
                 
                 Spacer(Modifier.height(24.dp))
@@ -176,19 +181,23 @@ fun TotalBalanceCard(balance: Double, income: Double, expense: Double) {
                     Column {
                         Text("Income", color = Color.White.copy(alpha = 0.7f), fontSize = 12.sp)
                         Text(
-                            "+" + formatMoney(income), 
+                            "+" + formatMoney(income, currency), 
                             color = Color(0xFF4ADE80), 
-                            fontSize = 18.sp, 
-                            fontWeight = FontWeight.Bold
+                            fontSize = 16.sp, 
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1,
+                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                         )
                     }
                     Column {
                         Text("Expense", color = Color.White.copy(alpha = 0.7f), fontSize = 12.sp)
                         Text(
-                            "-" + formatMoney(expense), 
+                            "-" + formatMoney(expense, currency), 
                             color = Color(0xFFF87171), 
-                            fontSize = 18.sp, 
-                            fontWeight = FontWeight.Bold
+                            fontSize = 16.sp, 
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1,
+                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                         )
                     }
                 }
@@ -200,8 +209,9 @@ fun TotalBalanceCard(balance: Double, income: Double, expense: Double) {
 @Composable
 fun TransactionListItem(
     transaction: LedgerTransaction,
-    onRetry: () -> Unit,
+    onRetry: () -> Unit
 ) {
+    val currency = LocalCurrency.current
     Surface(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(20.dp),
@@ -233,19 +243,21 @@ fun TransactionListItem(
                 Text(
                     transaction.category, 
                     fontWeight = FontWeight.Bold, 
-                    color = MaterialTheme.colorScheme.onSurface, 
-                    fontSize = 16.sp
+                    fontSize = 16.sp,
+                    color = MaterialTheme.colorScheme.onSurface
                 )
                 Text(
-                    transaction.note.ifBlank { "Uncategorized" }, 
-                    fontSize = 13.sp, 
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                    if (transaction.note.isNotBlank()) transaction.note else "No note added", 
+                    fontSize = 12.sp, 
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                    maxLines = 1,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                 )
             }
 
             Column(horizontalAlignment = Alignment.End) {
                 Text(
-                    text = (if (transaction.type == TransactionType.Income) "+" else "-") + formatMoney(transaction.amount),
+                    text = (if (transaction.type == TransactionType.Income) "+" else "-") + formatMoney(transaction.amount, currency),
                     fontWeight = FontWeight.ExtraBold,
                     fontSize = 16.sp,
                     color = if (transaction.type == TransactionType.Income) Color(0xFF10B981) else Color(0xFFEF4444)
@@ -320,10 +332,3 @@ private fun categoryIconAndTint(category: String): Pair<ImageVector, androidx.co
     else -> Icons.Outlined.ShoppingCart to MaterialTheme.colorScheme.primary
 }
 
-fun formatMoney(amount: Double): String {
-    val totalCents = (abs(amount) * 100 + 0.5).toLong()
-    val dollars = totalCents / 100
-    val cents = totalCents % 100
-    val dollarsStr = dollars.toString().reversed().chunked(3).joinToString(",").reversed()
-    return "$$dollarsStr.${cents.toString().padStart(2, '0')}"
-}

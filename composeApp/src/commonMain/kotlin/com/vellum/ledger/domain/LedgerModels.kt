@@ -37,6 +37,7 @@ data class LedgerSettings(
     val autoSync: Boolean = true,
     val isDarkMode: Boolean = false,
     val lastSyncAtMillis: Long? = null,
+    val currency: String = "USD ($)",
 )
 
 data class LedgerTransaction(

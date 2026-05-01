@@ -1,5 +1,9 @@
 package com.vellum.ledger.ui.screens
 
+import com.vellum.ledger.ui.theme.LocalCurrency
+import com.vellum.ledger.ui.util.formatMoney
+import com.vellum.ledger.data.currentTimeMillis
+import kotlinx.datetime.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -29,7 +33,8 @@ import kotlin.math.abs
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AnalyticsScreen(
-    ledger: LedgerSnapshot
+    ledger: LedgerSnapshot,
+    onViewReport: () -> Unit = {}
 ) {
     var selectedTab by remember { mutableStateOf(1) } // 0: Weekly, 1: Monthly, 2: Yearly
     val tabs = listOf("Weekly", "Monthly", "Yearly")
@@ -90,24 +95,44 @@ fun AnalyticsScreen(
             }
 
             item {
+                Text("Spending Trend", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                Spacer(Modifier.height(16.dp))
+                TrendChart(ledger, selectedTab)
+            }
+
+            item {
+                val now = currentTimeMillis()
+                val filteredTransactions = remember(selectedTab, ledger.transactions) {
+                    val periodStart = when (selectedTab) {
+                        0 -> now - (7 * 24 * 60 * 60 * 1000L) // Weekly
+                        1 -> now - (30 * 24 * 60 * 60 * 1000L) // Monthly
+                        else -> now - (365 * 24 * 60 * 60 * 1000L) // Yearly
+                    }
+                    ledger.transactions.filter { it.createdAt >= periodStart }
+                }
+                
+                val periodIncome = filteredTransactions.filter { it.type == TransactionType.Income }.sumOf { it.amount }
+                val periodExpense = filteredTransactions.filter { it.type == TransactionType.Expense }.sumOf { it.amount }
+                val periodBalance = periodIncome - periodExpense
+
                 Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
                     Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                         SummaryCard(
-                            label = "Total Income",
-                            amount = ledger.analytics.totalIncome,
+                            label = "Income",
+                            amount = periodIncome,
                             color = Color(0xFF10B981),
                             modifier = Modifier.weight(1f),
                             isIncrease = true
                         )
                         SummaryCard(
-                            label = "Total Expense",
-                            amount = ledger.analytics.totalExpense,
+                            label = "Expense",
+                            amount = periodExpense,
                             color = Color(0xFFEF4444),
                             modifier = Modifier.weight(1f),
                             isIncrease = false
                         )
                     }
-                    BalanceHighlightCard(ledger.analytics.currentBalance)
+                    BalanceHighlightCard(periodBalance)
                 }
             }
 
@@ -122,15 +147,20 @@ fun AnalyticsScreen(
                         Text("Expense Breakdown", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
                         Spacer(Modifier.height(20.dp))
                         
-                        val breakdownColors = listOf(
-                            Color(0xFF3525CD),
-                            Color(0xFF6366F1),
-                            Color(0xFF8B5CF6),
-                            Color(0xFFEC4899)
-                        )
-                        val breakdown = getBreakdown(ledger, breakdownColors)
+                        val filteredTransactions = remember(selectedTab, ledger.transactions) {
+                            val now = currentTimeMillis()
+                            val periodStart = when (selectedTab) {
+                                0 -> now - (7 * 24 * 60 * 60 * 1000L)
+                                1 -> now - (30 * 24 * 60 * 60 * 1000L)
+                                else -> now - (365 * 24 * 60 * 60 * 1000L)
+                            }
+                            ledger.transactions.filter { it.createdAt >= periodStart }
+                        }
+                        
+                        val breakdownColors = listOf(Color(0xFF3525CD), Color(0xFF6366F1), Color(0xFF8B5CF6), Color(0xFFEC4899))
+                        val breakdown = getBreakdown(filteredTransactions, breakdownColors)
                         if (breakdown.isEmpty()) {
-                            Text("No expenses to show", color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(vertical = 16.dp))
+                            Text("No data for this period", color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(vertical = 16.dp))
                         } else {
                             breakdown.forEach { item ->
                                 BreakdownRow(item)
@@ -140,7 +170,7 @@ fun AnalyticsScreen(
 
                         HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.05f))
                         TextButton(
-                            onClick = { },
+                            onClick = onViewReport,
                             modifier = Modifier.align(Alignment.End)
                         ) {
                             Text("View Full Report", color = MaterialTheme.colorScheme.primary, fontSize = 14.sp, fontWeight = FontWeight.Bold)
@@ -157,6 +187,7 @@ fun AnalyticsScreen(
 
 @Composable
 fun SummaryCard(label: String, amount: Double, color: Color, modifier: Modifier, isIncrease: Boolean) {
+    val currency = LocalCurrency.current
     Surface(
         modifier = modifier,
         shape = RoundedCornerShape(20.dp),
@@ -175,7 +206,14 @@ fun SummaryCard(label: String, amount: Double, color: Color, modifier: Modifier,
                 )
             }
             Spacer(Modifier.height(8.dp))
-            Text(formatMoney(amount), fontSize = 20.sp, fontWeight = FontWeight.ExtraBold, color = MaterialTheme.colorScheme.onSurface)
+            Text(
+                text = formatMoney(amount, currency),
+                fontSize = if (amount > 1_000_000) 16.sp else 20.sp,
+                fontWeight = FontWeight.ExtraBold,
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 1,
+                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+            )
             Text(
                 if (isIncrease) "+14.5% from last month" else "-2.4% from last month", 
                 fontSize = 10.sp, 
@@ -188,6 +226,7 @@ fun SummaryCard(label: String, amount: Double, color: Color, modifier: Modifier,
 
 @Composable
 fun BalanceHighlightCard(balance: Double) {
+    val currency = LocalCurrency.current
     Surface(
         modifier = Modifier.fillMaxWidth().height(110.dp),
         shape = RoundedCornerShape(24.dp),
@@ -205,7 +244,14 @@ fun BalanceHighlightCard(balance: Double) {
                     Text("Current Balance", color = Color.White.copy(alpha = 0.8f), fontSize = 14.sp, fontWeight = FontWeight.Medium)
                     Icon(Icons.Default.AccountBalanceWallet, contentDescription = null, tint = Color.White.copy(alpha = 0.4f))
                 }
-                Text(formatMoney(balance), fontSize = 32.sp, fontWeight = FontWeight.Black, color = Color.White)
+                Text(
+                    text = formatMoney(balance, currency),
+                    fontSize = if (balance > 1_000_000) 24.sp else 32.sp,
+                    fontWeight = FontWeight.Black,
+                    color = Color.White,
+                    maxLines = 1,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                )
             }
         }
     }
@@ -213,6 +259,7 @@ fun BalanceHighlightCard(balance: Double) {
 
 @Composable
 fun BreakdownRow(data: BreakdownData) {
+    val currency = LocalCurrency.current
     Column(modifier = Modifier.fillMaxWidth()) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -225,7 +272,7 @@ fun BreakdownRow(data: BreakdownData) {
                 Text(data.category, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             Row {
-                Text(formatMoney(data.amount), fontSize = 14.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                Text(formatMoney(data.amount, currency), fontSize = 14.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
                 Spacer(Modifier.width(12.dp))
                 Text("${(data.percentage * 100).toInt()}%", fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.width(32.dp))
             }
@@ -243,8 +290,59 @@ fun BreakdownRow(data: BreakdownData) {
 
 data class BreakdownData(val category: String, val amount: Double, val percentage: Float, val color: Color)
 
-fun getBreakdown(ledger: LedgerSnapshot, categoryColors: List<Color>): List<BreakdownData> {
-    val expenses = ledger.transactions.filter { it.type == TransactionType.Expense }
+@Composable
+fun TrendChart(ledger: LedgerSnapshot, selectedTab: Int) {
+    val now = currentTimeMillis()
+    val dataPoints = 7
+    val barData = (0 until dataPoints).map { i ->
+        val dayStart = now - ((dataPoints - 1 - i) * 24 * 60 * 60 * 1000L)
+        val dayEnd = dayStart + (24 * 60 * 60 * 1000L)
+        val dayTransactions = ledger.transactions.filter { it.createdAt in dayStart until dayEnd }
+        val income = dayTransactions.filter { it.type == TransactionType.Income }.sumOf { it.amount }
+        val expense = dayTransactions.filter { it.type == TransactionType.Expense }.sumOf { it.amount }
+        income to expense
+    }
+
+    val maxVal = barData.flatMap { listOf(it.first, it.second) }.maxOrNull()?.coerceAtLeast(100.0) ?: 100.0
+
+    Row(
+        modifier = Modifier.fillMaxWidth().height(180.dp).padding(vertical = 8.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalAlignment = Alignment.Bottom
+    ) {
+        barData.forEach { (income, expense) ->
+            Column(modifier = Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
+                Box(modifier = Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.BottomCenter) {
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.Bottom) {
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .fillMaxHeight((income / maxVal).toFloat().coerceIn(0.05f, 1f))
+                                .clip(RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp))
+                                .background(Color(0xFF10B981).copy(alpha = 0.8f))
+                        )
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .fillMaxHeight((expense / maxVal).toFloat().coerceIn(0.05f, 1f))
+                                .clip(RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp))
+                                .background(Color(0xFFEF4444).copy(alpha = 0.8f))
+                        )
+                    }
+                }
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    text = if (selectedTab == 0) "Day" else "Period",
+                    fontSize = 10.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                )
+            }
+        }
+    }
+}
+
+fun getBreakdown(transactions: List<com.vellum.ledger.domain.LedgerTransaction>, categoryColors: List<Color>): List<BreakdownData> {
+    val expenses = transactions.filter { it.type == TransactionType.Expense }
     val totalExpense = expenses.sumOf { it.amount }
     if (totalExpense == 0.0) return emptyList()
 

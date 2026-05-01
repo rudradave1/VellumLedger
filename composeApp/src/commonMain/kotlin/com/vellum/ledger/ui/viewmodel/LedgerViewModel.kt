@@ -29,6 +29,11 @@ class LedgerViewModel(private val repository: LedgerRepository) : ViewModel() {
             .map { it.settings.autoSync }
             .stateIn(viewModelScope, SharingStarted.Eagerly, ledger.value.settings.autoSync)
 
+    val currency: StateFlow<String> =
+        ledger
+            .map { it.settings.currency }
+            .stateIn(viewModelScope, SharingStarted.Eagerly, ledger.value.settings.currency)
+
     val lastSyncedMessage: StateFlow<String> =
         ledger
             .map { snapshot -> formatLastSync(snapshot.settings.lastSyncAtMillis, nowMillis = currentTimeMillis()) }
@@ -41,10 +46,10 @@ class LedgerViewModel(private val repository: LedgerRepository) : ViewModel() {
     private val _isSyncing = MutableStateFlow(false)
     val isSyncing: StateFlow<Boolean> = _isSyncing.asStateFlow()
 
-    fun addTransaction(amount: Double, type: TransactionType, category: String, note: String) {
+    fun addTransaction(amount: Double, type: TransactionType, category: String, note: String, timestamp: Long) {
         viewModelScope.launch {
             if (amount <= 0.0) return@launch
-            repository.addTransaction(amount, type, category, note)
+            repository.addTransaction(amount, type, category, note, timestamp)
             if (autoSync.value) {
                 syncNow()
             }
@@ -55,6 +60,8 @@ class LedgerViewModel(private val repository: LedgerRepository) : ViewModel() {
         if (_isSyncing.value) return
         viewModelScope.launch {
             _isSyncing.value = true
+            // Simulate a "real" sync delay for better UX
+            kotlinx.coroutines.delay(1500)
             val result = repository.syncNow()
             _isSyncing.value = false
         }
@@ -66,6 +73,10 @@ class LedgerViewModel(private val repository: LedgerRepository) : ViewModel() {
 
     fun toggleAutoSync(enabled: Boolean) {
         viewModelScope.launch { repository.setAutoSync(enabled) }
+    }
+
+    fun setCurrency(currency: String) {
+        viewModelScope.launch { repository.setCurrency(currency) }
     }
 
     fun retryTransaction(transactionId: String) {
@@ -89,6 +100,10 @@ class LedgerViewModel(private val repository: LedgerRepository) : ViewModel() {
 
     fun clearAll() {
         viewModelScope.launch { repository.clearAll() }
+    }
+
+    fun exportCSV(): String {
+        return repository.getCsvData()
     }
 }
 

@@ -8,6 +8,7 @@ import com.vellum.ledger.domain.*
 import com.vellum.ledger.sync.SyncResult
 import com.vellum.ledger.sync.SyncWorker
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.datetime.toLocalDateTime
 
 class LedgerRepository(
     private val database: LedgerDatabase = createLedgerDatabase(),
@@ -20,9 +21,9 @@ class LedgerRepository(
         type: TransactionType,
         category: String,
         note: String,
+        timestamp: Long = currentTimeMillis(),
     ) {
         require(amount > 0.0) { "Amount must be > 0" }
-        val now = currentTimeMillis()
         val transactionId = newLedgerId()
         val transaction = LedgerTransaction(
             id = transactionId,
@@ -30,14 +31,14 @@ class LedgerRepository(
             type = type,
             category = category,
             note = note.trim(),
-            createdAt = now,
+            createdAt = timestamp,
             syncStatus = SyncStatus.Pending,
         )
         val queueItem = SyncQueueItem(
             id = newLedgerId(),
             entityId = transactionId,
             operationType = "UPSERT_TRANSACTION",
-            createdAt = now,
+            createdAt = currentTimeMillis(),
             status = QueueStatus.Pending,
         )
 
@@ -85,6 +86,10 @@ class LedgerRepository(
         database.updateSettings { it.copy(isDarkMode = enabled) }
     }
 
+    suspend fun setCurrency(currency: String) {
+        database.updateSettings { it.copy(currency = currency) }
+    }
+
     suspend fun retryTransaction(transactionId: String) {
         database.markPending(transactionId)
     }
@@ -92,4 +97,22 @@ class LedgerRepository(
     suspend fun clearAll() {
         database.clearAll()
     }
+
+    fun getCsvData(): String {
+        val snapshot = ledger.value
+        val sb = StringBuilder()
+        sb.append("Date,Type,Category,Amount,Note,Status\n")
+        snapshot.transactions.forEach { t ->
+            val date = formatDateTime(t.createdAt)
+            sb.append("${date},${t.type},${t.category},${t.amount},\"${t.note}\",${t.syncStatus}\n")
+        }
+        return sb.toString()
+    }
+}
+
+private fun formatDateTime(millis: Long): String {
+    val instant = kotlinx.datetime.Instant.fromEpochMilliseconds(millis)
+    val dt = instant.toLocalDateTime(kotlinx.datetime.TimeZone.currentSystemDefault())
+    return "${dt.year}-${dt.monthNumber.toString().padStart(2, '0')}-${dt.dayOfMonth.toString().padStart(2, '0')} " +
+            "${dt.hour.toString().padStart(2, '0')}:${dt.minute.toString().padStart(2, '0')}"
 }
