@@ -95,7 +95,7 @@ fun HomeScreen(
                 .padding(paddingValues)
                 .padding(horizontal = 20.dp),
             verticalArrangement = Arrangement.spacedBy(20.dp),
-            contentPadding = PaddingValues(top = 16.dp, bottom = 100.dp)
+            contentPadding = PaddingValues(top = 16.dp, bottom = 24.dp)
         ) {
             item {
                 TotalBalanceCard(
@@ -167,7 +167,7 @@ fun TotalBalanceCard(balance: Double, income: Double, expense: Double) {
                     letterSpacing = (-1).sp
                 )
                 
-                Spacer(Modifier.height(16.dp))
+                Spacer(Modifier.height(24.dp))
 
                 Row(
                     modifier = Modifier.fillMaxWidth(),

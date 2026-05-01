@@ -63,7 +63,7 @@ fun CardsScreen(
                     .padding(paddingValues)
                     .padding(horizontal = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp),
-                contentPadding = PaddingValues(bottom = 80.dp)
+                contentPadding = PaddingValues(bottom = 24.dp)
             ) {
                 items(cards) { card ->
                     CreditCardItem(card = card, onDelete = { onDeleteCard(card.id) })
@@ -156,8 +156,12 @@ fun CreditCardItem(card: LedgerCard, onDelete: () -> Unit) {
 fun parseHexColor(hex: String): Color {
     return try {
         val colorHex = hex.removePrefix("#")
-        val argb = if (colorHex.length == 6) "FF$colorHex" else colorHex
-        Color(argb.toLong(16))
+        val colorLong = colorHex.toLong(16)
+        if (colorHex.length == 6) {
+            Color(0xFF000000 or colorLong)
+        } else {
+            Color(colorLong)
+        }
     } catch (e: Exception) {
         Color.Gray
     }
@@ -229,7 +233,7 @@ fun AddCardDialog(
                             modifier = Modifier
                                 .size(32.dp)
                                 .clip(CircleShape)
-                                .background(Color(android.graphics.Color.parseColor(color)))
+                                .background(parseHexColor(color))
                                 .clickable { selectedColor = color }
                                 .then(if (selectedColor == color) Modifier.background(Color.White.copy(alpha = 0.3f)) else Modifier)
                         )

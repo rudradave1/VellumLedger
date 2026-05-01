@@ -42,6 +42,16 @@ fun SettingsScreen(
                         Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = MaterialTheme.colorScheme.primary)
                     }
                 },
+                actions = {
+                    IconButton(onClick = onSyncNow, enabled = !isSyncing) {
+                        Icon(
+                            Icons.Outlined.Sync, 
+                            contentDescription = "Sync",
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
+                },
                 colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
                     containerColor = Color.Transparent
                 )
@@ -134,7 +144,7 @@ fun SettingsScreen(
                 }
             }
 
-            item { Spacer(Modifier.height(100.dp)) }
+            item { Spacer(Modifier.height(24.dp)) }
         }
     }
 }

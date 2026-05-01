@@ -1,16 +1,16 @@
 package com.vellum.ledger
 
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -111,45 +111,73 @@ fun BottomNavigationBar(
     currentScreen: Screen,
     onScreenSelected: (Screen) -> Unit
 ) {
-    NavigationBar(
-        containerColor = MaterialTheme.colorScheme.surface,
-        tonalElevation = 8.dp,
-        modifier = Modifier.height(80.dp)
-    ) {
-        val items = listOf(
-            Triple(Screen.Home, "Home", Icons.Outlined.Home),
-            Triple(Screen.Cards, "Cards", Icons.Outlined.CreditCard),
-            Triple(Screen.Analytics, "Analytics", Icons.Outlined.PieChart),
-            Triple(Screen.Settings, "Settings", Icons.Outlined.Settings)
-        )
+    val items = listOf(
+        Triple(Screen.Home, "Home", Icons.Outlined.Home),
+        Triple(Screen.Cards, "Cards", Icons.Outlined.CreditCard),
+        Triple(Screen.Analytics, "Charts", Icons.Outlined.BarChart),
+        Triple(Screen.Settings, "Settings", Icons.Outlined.Settings)
+    )
 
-        items.forEach { (screen, label, icon) ->
-            val selected = currentScreen == screen
-            NavigationBarItem(
-                selected = selected,
-                onClick = { onScreenSelected(screen) },
-                icon = { 
-                    Icon(
-                        icon, 
-                        contentDescription = label,
-                        modifier = Modifier.size(24.dp)
-                    ) 
-                },
-                label = { 
-                    Text(
-                        label,
-                        fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
-                        fontSize = 11.sp
-                    ) 
-                },
-                colors = NavigationBarItemDefaults.colors(
-                    selectedIconColor = MaterialTheme.colorScheme.primary,
-                    selectedTextColor = MaterialTheme.colorScheme.primary,
-                    unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                    unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                    indicatorColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)
-                )
+    Surface(
+        color = MaterialTheme.colorScheme.surface,
+        tonalElevation = 0.dp,
+    ) {
+        Column {
+            HorizontalDivider(
+                color = MaterialTheme.colorScheme.outline.copy(alpha = 0.08f),
+                thickness = 1.dp
             )
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(84.dp)
+                    .padding(bottom = 8.dp),
+                horizontalArrangement = Arrangement.SpaceEvenly,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                items.forEach { (screen, label, icon) ->
+                    val selected = currentScreen == screen
+                    
+                    val backgroundAlpha = if (selected) 0.12f else 0f
+                    val contentColor = if (selected) MaterialTheme.colorScheme.primary 
+                                     else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clickable(
+                                interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                                indication = null,
+                                onClick = { onScreenSelected(screen) }
+                            ),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Center,
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(16.dp))
+                                .background(MaterialTheme.colorScheme.primary.copy(alpha = backgroundAlpha))
+                                .padding(horizontal = 16.dp, vertical = 8.dp)
+                        ) {
+                            Icon(
+                                icon,
+                                contentDescription = label,
+                                tint = contentColor,
+                                modifier = Modifier.size(24.dp)
+                            )
+                            Spacer(Modifier.height(4.dp))
+                            Text(
+                                label,
+                                fontSize = 11.sp,
+                                fontWeight = if (selected) FontWeight.ExtraBold else FontWeight.SemiBold,
+                                color = contentColor,
+                                letterSpacing = 0.sp
+                            )
+                        }
+                    }
+                }
+            }
         }
     }
 }

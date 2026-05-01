@@ -38,7 +38,7 @@ fun AnalyticsScreen(
         topBar = {
             CenterAlignedTopAppBar(
                 title = {
-                    Text("Analytics", fontWeight = FontWeight.ExtraBold, fontSize = 22.sp)
+                    Text("Charts", fontWeight = FontWeight.ExtraBold, fontSize = 22.sp)
                 },
                 colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
                     containerColor = Color.Transparent
@@ -150,7 +150,7 @@ fun AnalyticsScreen(
                 }
             }
             
-            item { Spacer(Modifier.height(100.dp)) }
+            item { Spacer(Modifier.height(24.dp)) }
         }
     }
 }
