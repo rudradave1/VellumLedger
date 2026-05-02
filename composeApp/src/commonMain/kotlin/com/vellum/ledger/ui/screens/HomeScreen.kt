@@ -1,6 +1,8 @@
 package com.vellum.ledger.ui.screens
 
 import com.vellum.ledger.ui.util.formatMoney
+import org.jetbrains.compose.resources.stringResource
+import vellumledger.composeapp.generated.resources.*
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
@@ -14,8 +16,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -117,7 +118,7 @@ fun HomeScreen(
 
             item {
                 Text(
-                    "Recent Transactions",
+                    stringResource(Res.string.recent_transactions),
                     fontSize = 18.sp,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onSurface,
@@ -184,6 +185,8 @@ fun TransactionSkeleton() {
 @Composable
 fun TotalBalanceCard(balance: Double, income: Double, expense: Double) {
     val currency = LocalCurrency.current
+    var isBalanceVisible by remember { mutableStateOf(true) }
+    
     Surface(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(28.dp),
@@ -210,22 +213,42 @@ fun TotalBalanceCard(balance: Double, income: Double, expense: Double) {
             Column {
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                     Text(
-                        "Total Balance", 
+                        stringResource(Res.string.total_balance), 
                         color = Color.White.copy(alpha = 0.8f), 
                         fontSize = 15.sp, 
                         fontWeight = FontWeight.SemiBold
                     )
-                    Icon(Icons.Outlined.Visibility, contentDescription = null, tint = Color.White.copy(alpha = 0.5f), modifier = Modifier.size(20.dp))
+                    IconButton(
+                        onClick = { isBalanceVisible = !isBalanceVisible },
+                        modifier = Modifier.size(24.dp)
+                    ) {
+                        Icon(
+                            imageVector = if (isBalanceVisible) Icons.Outlined.Visibility else Icons.Outlined.VisibilityOff,
+                            contentDescription = if (isBalanceVisible) "Hide balance" else "Show balance",
+                            tint = Color.White.copy(alpha = 0.5f),
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
                 }
                 
                 Spacer(Modifier.height(8.dp))
                 
                 Text(
-                    text = formatMoney(balance, currency),
-                    fontSize = if (balance > 1_000_000) 32.sp else 48.sp,
+                    text = if (isBalanceVisible) {
+                        formatMoney(balance, currency, compact = balance > 1_000_000_000_000)
+                    } else {
+                        "••••••••"
+                    },
+                    fontSize = when {
+                        !isBalanceVisible -> 48.sp
+                        balance > 1_000_000_000_000 -> 32.sp
+                        balance > 1_000_000_000 -> 28.sp
+                        balance > 1_000_000 -> 32.sp
+                        else -> 48.sp
+                    },
                     fontWeight = FontWeight.Black,
                     color = Color.White,
-                    letterSpacing = (-1.5).sp,
+                    letterSpacing = if (isBalanceVisible) (-1.5).sp else 2.sp,
                     maxLines = 1,
                     overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                 )
@@ -238,24 +261,27 @@ fun TotalBalanceCard(balance: Double, income: Double, expense: Double) {
                         .clip(RoundedCornerShape(20.dp))
                         .background(Color.White.copy(alpha = 0.1f))
                         .padding(16.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
                     BalanceStatItem(
-                        label = "Income",
+                        label = stringResource(Res.string.income),
                         amount = income,
                         icon = Icons.Outlined.ArrowDownward,
                         color = Color(0xFF4ADE80),
-                        currency = currency
+                        currency = currency,
+                        modifier = Modifier.weight(1f)
                     )
                     
-                    Box(modifier = Modifier.width(1.dp).height(40.dp).background(Color.White.copy(alpha = 0.1f)))
+                    Box(modifier = Modifier.width(1.dp).height(32.dp).background(Color.White.copy(alpha = 0.1f)))
                     
                     BalanceStatItem(
-                        label = "Expense",
+                        label = stringResource(Res.string.expense),
                         amount = expense,
                         icon = Icons.Outlined.ArrowUpward,
                         color = Color(0xFFF87171),
-                        currency = currency
+                        currency = currency,
+                        modifier = Modifier.weight(1f)
                     )
                 }
             }
@@ -264,21 +290,37 @@ fun TotalBalanceCard(balance: Double, income: Double, expense: Double) {
 }
 
 @Composable
-fun BalanceStatItem(label: String, amount: Double, icon: ImageVector, color: Color, currency: String) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
+fun BalanceStatItem(
+    label: String, 
+    amount: Double, 
+    icon: ImageVector, 
+    color: Color, 
+    currency: String,
+    modifier: Modifier = Modifier
+) {
+    Row(
+        modifier = modifier,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
         Box(
             modifier = Modifier.size(32.dp).background(Color.White.copy(alpha = 0.15f), CircleShape),
             contentAlignment = Alignment.Center
         ) {
             Icon(icon, contentDescription = null, tint = color, modifier = Modifier.size(18.dp))
         }
-        Spacer(Modifier.width(12.dp))
-        Column {
-            Text(label, color = Color.White.copy(alpha = 0.6f), fontSize = 11.sp, fontWeight = FontWeight.Medium)
+        Spacer(Modifier.width(10.dp))
+        Column(modifier = Modifier.weight(1f)) {
             Text(
-                formatMoney(amount, currency), 
+                label, 
+                color = Color.White.copy(alpha = 0.6f), 
+                fontSize = 11.sp, 
+                fontWeight = FontWeight.Medium,
+                maxLines = 1
+            )
+            Text(
+                formatMoney(amount, currency, compact = amount > 1_000_000), 
                 color = Color.White, 
-                fontSize = 16.sp, 
+                fontSize = 14.sp,
                 fontWeight = FontWeight.Bold,
                 maxLines = 1,
                 overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
@@ -325,7 +367,9 @@ fun TransactionListItem(
                     transaction.category, 
                     fontWeight = FontWeight.Bold, 
                     fontSize = 16.sp,
-                    color = MaterialTheme.colorScheme.onSurface
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                 )
                 Text(
                     if (transaction.note.isNotBlank()) transaction.note else "No note added", 
@@ -336,12 +380,16 @@ fun TransactionListItem(
                 )
             }
 
+            Spacer(Modifier.width(16.dp))
+
             Column(horizontalAlignment = Alignment.End) {
                 Text(
-                    text = (if (transaction.type == TransactionType.Income) "+" else "-") + formatMoney(transaction.amount, currency),
+                    text = (if (transaction.type == TransactionType.Income) "+" else "-") + formatMoney(transaction.amount, currency, compact = transaction.amount > 1_000_000),
                     fontWeight = FontWeight.ExtraBold,
                     fontSize = 16.sp,
-                    color = if (transaction.type == TransactionType.Income) Color(0xFF10B981) else Color(0xFFEF4444)
+                    color = if (transaction.type == TransactionType.Income) Color(0xFF10B981) else Color(0xFFEF4444),
+                    maxLines = 1,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                 )
                 Spacer(Modifier.height(4.dp))
                 SyncStatusIndicator(

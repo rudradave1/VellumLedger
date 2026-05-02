@@ -1,10 +1,14 @@
 package com.vellum.ledger.domain
 
+import kotlinx.serialization.Serializable
+
+@Serializable
 enum class TransactionType {
     Income,
     Expense,
 }
 
+@Serializable
 enum class SyncStatus {
     Pending,
     Syncing,
@@ -40,6 +44,7 @@ data class LedgerSettings(
     val currency: String = "USD ($)",
 )
 
+@Serializable
 data class LedgerTransaction(
     val id: String,
     val amount: Double,

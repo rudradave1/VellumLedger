@@ -150,7 +150,7 @@ fun SettingsScreen(
             item {
                 SettingsSection(title = "About", icon = Icons.Outlined.Info) {
                     Column {
-                        SettingsItem(title = "App Version", value = "v1.2.0")
+                        SettingsItem(title = "App Version", value = com.vellum.ledger.data.appVersion)
                         HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.outline.copy(alpha = 0.05f))
                         SettingsItem(title = "About LedgerSync", showArrow = true, onClick = { showAboutDialog = true })
                     }
@@ -248,7 +248,7 @@ fun AboutDialog(onDismiss: () -> Unit) {
         title = { Text("About VellumLedger", fontWeight = FontWeight.Bold) },
         text = {
             Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
-                Text("Version 1.2.0", fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("Version ${com.vellum.ledger.data.appVersion}", fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Spacer(Modifier.height(16.dp))
                 Text(
                     "VellumLedger is a premium financial tracking application designed for speed, security, and simplicity. Manage your cards and transactions with ease.",

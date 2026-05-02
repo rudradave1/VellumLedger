@@ -15,9 +15,15 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
+import com.vellum.ledger.ui.util.GlobalErrorHandler
+import kotlinx.coroutines.flow.SharedFlow
+
 class LedgerViewModel(private val repository: LedgerRepository) : ViewModel() {
 
     val ledger: StateFlow<LedgerSnapshot> = repository.ledger
+    val errorEvents: SharedFlow<String> = GlobalErrorHandler.errorEvents
+
+    // ... (rest of the class)
 
     val isDarkMode: StateFlow<Boolean> =
         ledger
@@ -48,10 +54,14 @@ class LedgerViewModel(private val repository: LedgerRepository) : ViewModel() {
 
     fun addTransaction(amount: Double, type: TransactionType, category: String, note: String, timestamp: Long) {
         viewModelScope.launch {
-            if (amount <= 0.0) return@launch
-            repository.addTransaction(amount, type, category, note, timestamp)
-            if (autoSync.value) {
-                syncNow()
+            try {
+                if (amount <= 0.0) return@launch
+                repository.addTransaction(amount, type, category, note, timestamp)
+                if (autoSync.value) {
+                    syncNow()
+                }
+            } catch (e: Exception) {
+                GlobalErrorHandler.handleError(e)
             }
         }
     }
@@ -59,11 +69,16 @@ class LedgerViewModel(private val repository: LedgerRepository) : ViewModel() {
     fun syncNow() {
         if (_isSyncing.value) return
         viewModelScope.launch {
-            _isSyncing.value = true
-            // Simulate a "real" sync delay for better UX
-            kotlinx.coroutines.delay(1500)
-            val result = repository.syncNow()
-            _isSyncing.value = false
+            try {
+                _isSyncing.value = true
+                // Simulate a "real" sync delay for better UX
+                kotlinx.coroutines.delay(1500)
+                val result = repository.syncNow()
+                _isSyncing.value = false
+            } catch (e: Exception) {
+                _isSyncing.value = false
+                GlobalErrorHandler.handleError(e)
+            }
         }
     }
 

@@ -29,6 +29,8 @@ interface LedgerDatabase {
     suspend fun deleteCard(cardId: String)
 
     suspend fun clearAll()
+
+    suspend fun convertCurrency(from: String, to: String)
 }
 
 expect fun createLedgerDatabase(): LedgerDatabase

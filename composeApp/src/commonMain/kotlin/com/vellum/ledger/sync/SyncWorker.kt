@@ -11,7 +11,7 @@ data class SyncResult(
 
 class SyncWorker(
     private val database: LedgerDatabase,
-    private val api: FakeLedgerApi = FakeLedgerApi(),
+    private val api: LedgerApi = LedgerApi(),
 ) {
     suspend fun processQueue(): SyncResult {
         val pendingItems = database.pendingQueueItems()

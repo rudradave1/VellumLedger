@@ -27,6 +27,7 @@ import com.vellum.ledger.ui.screens.CardsScreen
 import com.vellum.ledger.ui.screens.HomeScreen
 import com.vellum.ledger.ui.screens.SettingsScreen
 import com.vellum.ledger.ui.theme.*
+import com.vellum.ledger.ui.util.*
 import com.vellum.ledger.ui.viewmodel.LedgerViewModel
 import kotlinx.coroutines.launch
 
@@ -43,6 +44,10 @@ fun App() {
     val repository = remember { LedgerRepository() }
     val viewModel: LedgerViewModel = viewModel { LedgerViewModel(repository) }
     val haptic = LocalHapticFeedback.current
+    val authenticator = rememberBiometricAuthenticator()
+    
+    var isUnlocked by remember { mutableStateOf(false) }
+    var authError by remember { mutableStateOf<String?>(null) }
     
     val ledger by viewModel.ledger.collectAsState()
     val isSyncing by viewModel.isSyncing.collectAsState()
@@ -55,86 +60,128 @@ fun App() {
     var exportCsvData by remember { mutableStateOf<String?>(null) }
     var showReportDialog by remember { mutableStateOf(false) }
 
+    val snackbarHostState = remember { SnackbarHostState() }
+
+    LaunchedEffect(viewModel.errorEvents) {
+        viewModel.errorEvents.collect { message ->
+            snackbarHostState.showSnackbar(message)
+        }
+    }
+
     LedgerTheme(darkTheme = isDarkMode, currency = currency) {
-        Scaffold(
-            bottomBar = {
-                if (currentScreen != Screen.AddTransaction) {
-                    BottomNavigationBar(
-                        currentScreen = currentScreen,
-                        onScreenSelected = { 
-                            if (it != currentScreen) {
-                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                currentScreen = it 
+        if (!isUnlocked) {
+            Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background), contentAlignment = Alignment.Center) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Icon(Icons.Outlined.Lock, contentDescription = null, modifier = Modifier.size(64.dp), tint = MaterialTheme.colorScheme.primary)
+                    Spacer(Modifier.height(16.dp))
+                    Text("VellumLedger is Locked", fontWeight = FontWeight.Bold)
+                    if (authError != null) {
+                        Text(authError!!, color = MaterialTheme.colorScheme.error, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 32.dp))
+                    }
+                    Spacer(Modifier.height(24.dp))
+                    Button(onClick = {
+                        authenticator.authenticate(
+                            "Unlock VellumLedger",
+                            "Use biometrics to access your finances",
+                            onSuccess = { isUnlocked = true },
+                            onError = { authError = it }
+                        )
+                    }) {
+                        Text("Unlock Now")
+                    }
+                }
+            }
+            
+            LaunchedEffect(Unit) {
+                authenticator.authenticate(
+                    "Unlock VellumLedger",
+                    "Use biometrics to access your finances",
+                    onSuccess = { isUnlocked = true },
+                    onError = { authError = it }
+                )
+            }
+        } else {
+            Scaffold(
+                snackbarHost = { SnackbarHost(snackbarHostState) },
+                bottomBar = {
+                    if (currentScreen != Screen.AddTransaction) {
+                        BottomNavigationBar(
+                            currentScreen = currentScreen,
+                            onScreenSelected = { 
+                                if (it != currentScreen) {
+                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                    currentScreen = it 
+                                }
+                            }
+                        )
+                    }
+                },
+                containerColor = MaterialTheme.colorScheme.background,
+                contentWindowInsets = WindowInsets(0, 0, 0, 0)
+            ) { paddingValues ->
+                Box(modifier = Modifier.fillMaxSize().padding(bottom = paddingValues.calculateBottomPadding())) {
+                    AnimatedContent(
+                        targetState = currentScreen,
+                        transitionSpec = {
+                            if (targetState == Screen.AddTransaction || initialState == Screen.AddTransaction) {
+                                (slideInVertically { it } + fadeIn()).togetherWith(slideOutVertically { it } + fadeOut())
+                            } else {
+                                fadeIn(animationSpec = tween(300)).togetherWith(fadeOut(animationSpec = tween(300)))
                             }
                         }
-                    )
-                }
-            },
-            containerColor = MaterialTheme.colorScheme.background,
-            contentWindowInsets = WindowInsets(0, 0, 0, 0)
-        ) { paddingValues ->
-            Box(modifier = Modifier.fillMaxSize().padding(bottom = paddingValues.calculateBottomPadding())) {
-                AnimatedContent(
-                    targetState = currentScreen,
-                    transitionSpec = {
-                        if (targetState == Screen.AddTransaction || initialState == Screen.AddTransaction) {
-                            (slideInVertically { it } + fadeIn()).togetherWith(slideOutVertically { it } + fadeOut())
-                        } else {
-                            fadeIn(animationSpec = tween(300)).togetherWith(fadeOut(animationSpec = tween(300)))
-                        }
-                    }
-                ) { screen ->
-                    when (screen) {
-                        Screen.Home -> HomeScreen(
-                            ledger = ledger,
-                            isSyncing = isSyncing,
-                            onSyncClick = { 
-                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                viewModel.syncNow() 
-                            },
-                            onAddClick = { 
-                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                currentScreen = Screen.AddTransaction 
-                            },
-                            onRetryTransaction = { id -> viewModel.retryTransaction(id) },
-                        )
-                        Screen.Cards -> {
-                            CardsScreen(
-                                cards = ledger.cards,
-                                onAddCard = { name, number, type, expiry, balance, color ->
-                                    viewModel.addCard(name, number, type, expiry, balance, color)
-                                },
-                                onDeleteCard = { id -> viewModel.deleteCard(id) }
-                            )
-                        }
-                        Screen.Analytics -> AnalyticsScreen(
-                            ledger = ledger,
-                            onViewReport = { showReportDialog = true }
-                        )
-                        Screen.AddTransaction -> AddTransactionScreen(
-                            onSave = { amount, type, category, note, timestamp ->
-                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                viewModel.addTransaction(amount, type, category, note, timestamp)
-                                currentScreen = Screen.Home
-                            },
-                            onBack = { currentScreen = Screen.Home }
-                        )
-                        Screen.Settings -> {
-                            SettingsScreen(
-                                isDarkMode = isDarkMode,
-                                onDarkModeChange = { viewModel.toggleDarkMode(it) },
-                                autoSync = autoSync,
-                                onAutoSyncChange = { viewModel.toggleAutoSync(it) },
-                                lastSyncedMessage = lastSyncedMessage,
-                                onSyncNow = { viewModel.syncNow() },
+                    ) { screen ->
+                        when (screen) {
+                            Screen.Home -> HomeScreen(
+                                ledger = ledger,
                                 isSyncing = isSyncing,
-                                onExportCSV = { 
-                                    exportCsvData = viewModel.exportCSV()
+                                onSyncClick = { 
+                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                    viewModel.syncNow() 
                                 },
-                                onClearData = { viewModel.clearAll() },
-                                onBack = { currentScreen = Screen.Home },
-                                onCurrencyChange = { viewModel.setCurrency(it) }
+                                onAddClick = { 
+                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                    currentScreen = Screen.AddTransaction 
+                                },
+                                onRetryTransaction = { id -> viewModel.retryTransaction(id) },
                             )
+                            Screen.Cards -> {
+                                CardsScreen(
+                                    cards = ledger.cards,
+                                    onAddCard = { name, number, type, expiry, balance, color ->
+                                        viewModel.addCard(name, number, type, expiry, balance, color)
+                                    },
+                                    onDeleteCard = { id -> viewModel.deleteCard(id) }
+                                )
+                            }
+                            Screen.Analytics -> AnalyticsScreen(
+                                ledger = ledger,
+                                onViewReport = { showReportDialog = true }
+                            )
+                            Screen.AddTransaction -> AddTransactionScreen(
+                                onSave = { amount, type, category, note, timestamp ->
+                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                    viewModel.addTransaction(amount, type, category, note, timestamp)
+                                    currentScreen = Screen.Home
+                                },
+                                onBack = { currentScreen = Screen.Home }
+                            )
+                            Screen.Settings -> {
+                                SettingsScreen(
+                                    isDarkMode = isDarkMode,
+                                    onDarkModeChange = { viewModel.toggleDarkMode(it) },
+                                    autoSync = autoSync,
+                                    onAutoSyncChange = { viewModel.toggleAutoSync(it) },
+                                    lastSyncedMessage = lastSyncedMessage,
+                                    onSyncNow = { viewModel.syncNow() },
+                                    isSyncing = isSyncing,
+                                    onExportCSV = { 
+                                        exportCsvData = viewModel.exportCSV()
+                                    },
+                                    onClearData = { viewModel.clearAll() },
+                                    onBack = { currentScreen = Screen.Home },
+                                    onCurrencyChange = { viewModel.setCurrency(it) }
+                                )
+                            }
                         }
                     }
                 }
@@ -150,22 +197,19 @@ fun App() {
                 Column {
                     Text("CSV Data generated successfully.", fontWeight = FontWeight.Bold)
                     Spacer(Modifier.height(8.dp))
-                    Surface(
-                        color = MaterialTheme.colorScheme.surfaceVariant,
-                        shape = RoundedCornerShape(8.dp),
-                        modifier = Modifier.fillMaxWidth().heightIn(max = 200.dp)
-                    ) {
-                        Text(
-                            exportCsvData!!,
-                            modifier = Modifier.padding(12.dp),
-                            fontSize = 12.sp,
-                            fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
-                        )
-                    }
+                    Text("You can now share or save this file.")
                 }
             },
             confirmButton = {
-                Button(onClick = { exportCsvData = null }) {
+                Button(onClick = { 
+                    com.vellum.ledger.data.shareText(exportCsvData!!, "Ledger_Export.csv")
+                    exportCsvData = null 
+                }) {
+                    Text("Share / Save")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { exportCsvData = null }) {
                     Text("Close")
                 }
             }

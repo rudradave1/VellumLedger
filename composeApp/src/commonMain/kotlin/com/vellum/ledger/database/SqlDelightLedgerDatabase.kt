@@ -240,6 +240,40 @@ internal class SqlDelightLedgerDatabase(
             }
         }
     }
+
+    override suspend fun convertCurrency(from: String, to: String) {
+        withContext(Dispatchers.Default) {
+            queries.transaction {
+                val transactions = queries.selectAllTransactions().executeAsList()
+                transactions.forEach { t ->
+                    val newAmount = com.vellum.ledger.ui.util.ExchangeRateUtil.convert(t.amount, from, to)
+                    queries.insertTransaction(
+                        id = t.id,
+                        amount = newAmount,
+                        type = t.type,
+                        category = t.category,
+                        note = t.note,
+                        created_at = t.created_at,
+                        sync_status = t.sync_status
+                    )
+                }
+                
+                val cards = queries.selectAllCards().executeAsList()
+                cards.forEach { c ->
+                    val newBalance = com.vellum.ledger.ui.util.ExchangeRateUtil.convert(c.balance, from, to)
+                    queries.insertCard(
+                        id = c.id,
+                        card_name = c.card_name,
+                        card_number = c.card_number,
+                        card_type = c.card_type,
+                        expiry = c.expiry,
+                        balance = newBalance,
+                        hex_color = c.hex_color
+                    )
+                }
+            }
+        }
+    }
 }
 
 private fun String.toTransactionType(): TransactionType = when (uppercase()) {

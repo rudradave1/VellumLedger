@@ -52,15 +52,15 @@ SELECT *
 FROM cards;
 
 insertTransaction:
-INSERT INTO transactions(id, amount, type, category, note, created_at, sync_status)
+INSERT OR REPLACE INTO transactions(id, amount, type, category, note, created_at, sync_status)
 VALUES (?, ?, ?, ?, ?, ?, ?);
 
 insertQueueItem:
-INSERT INTO sync_queue(id, entity_id, operation_type, created_at, status)
+INSERT OR REPLACE INTO sync_queue(id, entity_id, operation_type, created_at, status)
 VALUES (?, ?, ?, ?, ?);
 
 insertCard:
-INSERT INTO cards(id, card_name, card_number, card_type, expiry, balance, hex_color)
+INSERT OR REPLACE INTO cards(id, card_name, card_number, card_type, expiry, balance, hex_color)
 VALUES (?, ?, ?, ?, ?, ?, ?);
 
 updateTransactionSyncStatus:
