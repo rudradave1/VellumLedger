@@ -7,6 +7,22 @@ A privacy-focused expense tracker built with Kotlin Multiplatform. Every write l
 **This is a complete system** mobile client, local database, sync engine, and a production Ktor + PostgreSQL server-> all in Kotlin.
 
 ---
+## Screenshots
+
+<p align="center">
+  <img src="screenshots/home_light.png" width="19%"/>
+  <img src="screenshots/home_dark.png" width="19%"/>
+  <img src="screenshots/search.png" width="19%"/>
+  <img src="screenshots/add_transaction.png" width="19%"/>
+  <img src="screenshots/cards_dark.png" width="19%"/>
+</p>
+<p align="center">
+  <img src="screenshots/charts.png" width="19%"/>
+  <img src="screenshots/ai_summary.png" width="19%"/>
+  <img src="screenshots/financial_summary.png" width="19%"/>
+</p>
+
+---
 
 ## Live Backend
 
