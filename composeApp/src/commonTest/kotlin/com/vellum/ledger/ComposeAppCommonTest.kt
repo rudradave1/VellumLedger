@@ -1,6 +1,7 @@
 package com.vellum.ledger
 
 import com.vellum.ledger.database.LedgerDatabase
+import com.vellum.ledger.domain.LedgerCard
 import com.vellum.ledger.domain.LedgerSnapshot
 import com.vellum.ledger.domain.LedgerSettings
 import com.vellum.ledger.domain.LedgerTransaction
@@ -132,7 +133,23 @@ private class FakeLedgerDatabase : LedgerDatabase {
         mutableState.value = mutableState.value.copy(settings = transform(mutableState.value.settings))
     }
 
+    override suspend fun insertCard(card: LedgerCard) {
+        mutableState.value = mutableState.value.copy(
+            cards = mutableState.value.cards + card
+        )
+    }
+
+    override suspend fun deleteCard(cardId: String) {
+        mutableState.value = mutableState.value.copy(
+            cards = mutableState.value.cards.filter { it.id != cardId }
+        )
+    }
+
     override suspend fun clearAll() {
         mutableState.value = LedgerSnapshot(settings = mutableState.value.settings)
+    }
+
+    override suspend fun convertCurrency(from: String, to: String) {
+        // No-op for fake
     }
 }

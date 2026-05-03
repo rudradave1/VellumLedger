@@ -1,162 +1,55 @@
-# VellumLedger
+# VellumLedger — Offline-first Finance Tracker
 
-> **Durable, offline-first personal finance — built with Kotlin Multiplatform.**
+> **Durable, offline-first personal finance tracking with real-time cloud synchronization.**
 
-VellumLedger is a privacy-focused expense tracking app for Android and iOS. All data lives locally by default — no account required, no data leaves your device without your explicit action. Built as a real-world demonstration of KMP architecture, SQLDelight-powered offline sync, and Compose Multiplatform UI.
+VellumLedger is a premium expense management application built with Kotlin Multiplatform. It prioritizes data integrity and user privacy by using an **offline-first architecture**. All data is persisted locally via SQLDelight before being synchronized with a cloud backend via a custom push-based protocol.
 
-<br/>
+## 🏗 Architecture (MVVM + Repository Pattern)
+The project follows a clean, decoupled architecture optimized for Kotlin Multiplatform:
 
-## Screenshots
+- **UI Layer (Compose Multiplatform):** Reactive UI built with Material 3. Screens observe state from ViewModels via `StateFlow`.
+- **ViewModel Layer:** Handles UI logic and manages state transitions. Communicates only with the Repository layer.
+- **Repository Layer:** Acts as a single source of truth. Orchestrates data flow between the local database and the remote sync engine.
+- **Sync Engine (Ktor):** A robust synchronization layer that handles background processing, JWT authentication, and network resilience.
+- **Data Layer (SQLDelight):** High-performance local persistence with platform-specific drivers (Android/iOS).
 
-| Dashboard | Add Transaction | Analytics | Settings |
-|-----------|----------------|-----------|----------|
-| ![Dashboard](screenshots/dashboard.png) | ![Add Transaction](screenshots/add_transaction.png) | ![Charts](screenshots/charts.png) | ![Settings](screenshots/settings.png) |
+## 🧠 Synchronization Protocol
+VellumLedger treat the network as an enhancement, not a dependency:
+1. **Local-First Writes:** Transactions are immediately saved locally with a `PENDING` status.
+2. **Sync Queue:** Mutations are enqueued. A `SyncWorker` processes them in the background.
+3. **DTO Mapping:** Domain models are mapped to `NetworkTransaction` DTOs, ensuring strict backend contract compliance.
+4. **Resiliency:** Implements exponential backoff and manual retry mechanisms for failed syncs.
 
-<br/>
+## 🛠 Tech Stack
+- **Mobile:** Kotlin Multiplatform, Compose Multiplatform, SQLDelight, Ktor Client.
+- **Backend:** Ktor Server, Exposed ORM, PostgreSQL (Railway).
+- **Security:** JWT (JSON Web Tokens) Authentication.
 
-## Architecture
-
-```
-┌─────────────────────────────────────────────────────────┐
-│                    Compose Multiplatform UI              │
-│              (commonMain · Material 3 · Dark/Light)      │
-└───────────────────────┬─────────────────────────────────┘
-                        │
-┌───────────────────────▼─────────────────────────────────┐
-│                    ViewModel Layer                       │
-│         LedgerViewModel · StateFlow · Coroutines         │
-└──────────┬────────────────────────────┬─────────────────┘
-           │                            │
-┌──────────▼──────────┐    ┌────────────▼────────────────┐
-│   Repository Layer  │    │      Sync Engine            │
-│  TransactionRepo    │    │  SyncQueue · SyncWorker     │
-│  CardRepository     │    │  Ktor HttpClient backend    │
-│  AnalyticsEngine    │    │  Status: Pending/Synced/    │
-│  ExchangeRateEngine │    │          Failed             │
-└──────────┬──────────┘    └────────────┬────────────────┘
-           │                            │
-┌──────────▼────────────────────────────▼────────────────┐
-│                    SQLDelight Database                  │
-│         Transactions · Cards · SyncQueue tables        │
-│   expect/actual drivers: Android · iOS (Native)        │
-└─────────────────────────────────────────────────────────┘
-         GlobalErrorHandler → Snackbar feedback loop
-         expect/actual → dynamic versioning
+## 🧪 Proof of Work
+### API Health Check
+```bash
+curl https://vellum-ledger-api-production.up.railway.app/health
 ```
 
-**Key architectural decisions:**
+### Sync Verification
+The system uses a strict push protocol:
+- **Authorization**: Bearer JWT included in all sync requests.
+- **Contract**: Multi-transaction push support via `PushRequest` wrapper.
+- **Status Tracking**: Full lifecycle tracking: `PENDING → SYNCING → SYNCED | FAILED`.
 
-- **Offline-first by design.** Every write goes to SQLDelight first. The sync queue processes pending operations in the background — connectivity is never a hard dependency.
-- **Single source of truth.** `StateFlow` from the ViewModel drives all UI state. No manual refresh, no race conditions between UI and DB.
-- **Expect/Actual for platform drivers.** `AndroidSqliteDriver` and `NativeSqliteDriver` are injected at the platform boundary — shared logic never knows which platform it's on.
-- **SyncQueue pattern.** Mutations are enqueued, not synced inline. The worker processes them with status tracking (`PENDING → SYNCING → SYNCED | FAILED`), enabling retry logic and audit trails.
-- **GlobalErrorHandler.** Network and DB errors surface via a Snackbar feedback loop — the UI never silently swallows failures.
-- **Resilient number formatting.** Balances scale automatically to compact notation (K, M, B, T) — the dashboard handles any amount without breaking layout.
-
-<br/>
-
-## Features
-
-| Feature | Status |
-|---------|--------|
-| Dashboard with real-time balance, income & expense | ✅ |
-| Resilient compact number formatting (K/M/B/T) | ✅ |
-| Add/categorize transactions (Expense & Income) | ✅ |
-| Animated transaction list with sync status indicators | ✅ |
-| Swipable card wallet with custom hex-color themes | ✅ |
-| 7-day spending trend bar chart | ✅ |
-| Category breakdown with percentage analytics | ✅ |
-| Weekly / Monthly / Yearly period comparison | ✅ |
-| Export transactions to CSV | ✅ |
-| Native system sharing for CSV exports | ✅ |
-| Dynamic app version tracking | ✅ |
-| Dark mode (system-aware) | ✅ |
-| Real-time exchange rate engine (actual conversion) | ✅ |
-| Ktor HttpClient sync architecture | ✅ |
-| ProGuard/R8 rules for KMP + SQLDelight | ✅ |
-| Snackbar error feedback (network & DB errors) | ✅ |
-| INTERNET permission + release-ready manifest | ✅ |
-| Authentication (OAuth2 / biometric lock) | ✅ |
-| Military-grade SQLCipher database encryption | ✅ |
-| Crash reporting (Crashlytics / Sentry) | 🔧 Roadmap |
-| Structured logging (Kermit / Timber) | 🔧 Roadmap |
-| Unit tests for ExchangeRateUtil & formatMoney | 🔧 Roadmap |
-| Signed release keystore + Play Store assets | 🔧 Roadmap |
-
-<br/>
-
-## Tech Stack
-
-| Layer | Technology |
-|-------|-----------|
-| Language | Kotlin (Multiplatform) |
-| UI | Compose Multiplatform · Material 3 |
-| Architecture | MVVM · StateFlow · Repository pattern |
-| Database | SQLDelight 2.0.2 |
-| Networking | Ktor 3.0.3 |
-| Serialization | Kotlinx Serialization |
-| Concurrency | Kotlinx Coroutines |
-| Date/Time | Kotlinx Datetime |
-| ViewModel | AndroidX Lifecycle (KMP-compatible) |
-| Build | Gradle Version Catalogs |
-
-<br/>
-
-## Project Structure
-
+## 🏗 Project Structure
 ```
 VellumLedger/
 ├── composeApp/
-│   ├── commonMain/         # Shared business logic + Compose UI
-│   │   ├── data/           # Repositories, SQLDelight schemas, Ktor client
-│   │   ├── domain/         # Models, sync engine, exchange rate engine
-│   │   └── ui/             # Screens, ViewModels, theme, error handler
-│   ├── androidMain/        # AndroidSqliteDriver, platform impl
-│   └── iosMain/            # NativeSqliteDriver, platform impl
-└── iosApp/                 # SwiftUI entry point (thin wrapper)
+│   ├── commonMain/
+│   │   ├── sync/           # Ktor API, Network DTOs, UserSession
+│   │   ├── repository/     # LedgerRepository (Data Orchestration)
+│   │   ├── database/       # SQLDelight & LedgerDatabase implementation
+│   │   └── ui/             # Screens, ViewModels, Theme
+│   ├── androidMain/        # Android Drivers & Biometrics
+│   └── iosMain/            # iOS Native Drivers
+└── server/                 # Ktor + PostgreSQL Backend
 ```
 
-<br/>
-
-## Getting Started
-
-**Prerequisites**
-- Android Studio Hedgehog or newer
-- JDK 17+
-- Xcode 15+ (for iOS)
-
-**Android**
-```bash
-./gradlew :composeApp:assembleDebug
-```
-
-**iOS**
-```bash
-open iosApp/iosApp.xcworkspace
-```
-Then select a simulator and hit Run, or use the KMM plugin in Android Studio.
-
-<br/>
-
-## Known Limitations
-
-This is an active personal project. Current known limitations:
-
-- **No authentication yet.** The sync layer connects without user login. OAuth2 or biometric lock is the next planned milestone — the architecture is ready for it.
-- **Backend URL is a placeholder.** `LedgerApi.kt` uses a stub endpoint. Swapping in a real URL is the only change needed — the Ktor client and sync queue are fully wired.
-- **No crash reporting.** The `GlobalErrorHandler` surfaces errors in-app, but there's no remote observability yet.
-- **Minimal test coverage.** `ExchangeRateUtil` and `formatMoney` need unit tests; DB migration edge cases are untested.
-
-Engineering note: the sync architecture is intentionally backend-agnostic. The `SyncQueue` and `SyncWorker` don't care what's on the other end — going live requires touching only `LedgerApi.kt`.
-
-<br/>
-
-## Why I Built This
-
-Most KMP finance demos are either too trivial (single screen, no persistence) or too abstracted to show real architectural decisions. VellumLedger is a reference implementation that shows what a production KMP app *structure* looks like — offline sync queue, platform-specific driver injection, real-time exchange rate engine, reactive ViewModel state — without requiring a live backend to demonstrate the core engineering.
-
-<br/>
-
-## License
-
-MIT License — see [LICENSE](LICENSE) for details.
+---
+*Built with ❤️ by Rudra Dave*

@@ -11,7 +11,7 @@ data class SyncResult(
 
 class SyncWorker(
     private val database: LedgerDatabase,
-    private val api: LedgerApi = LedgerApi(),
+    private val api: LedgerApi = KtorLedgerApi(),
 ) {
     suspend fun processQueue(): SyncResult {
         val pendingItems = database.pendingQueueItems()
@@ -25,15 +25,36 @@ class SyncWorker(
                 return@forEach
             }
 
-            try {
-                database.markSyncing(transaction.id)
-                delay(1000) // Simulate network delay for "Sync in progress" signal
-                api.push(transaction)
-                database.markSynced(transaction.id, item.id)
-                synced += 1
-            } catch (_: Throwable) {
-                database.markFailed(transaction.id)
-                failed += 1
+            var retryCount = 0
+            val maxRetries = 2
+            var success = false
+
+            while (retryCount <= maxRetries && !success) {
+                try {
+                    database.markSyncing(transaction.id)
+                    
+                    // Add a small artificial delay to show the "syncing" UI state
+                    if (retryCount > 0) {
+                        println("SyncWorker: Retrying ${transaction.id} (Attempt ${retryCount + 1})...")
+                        delay(2000L * retryCount) 
+                    } else {
+                        delay(800)
+                    }
+
+                    api.push(transaction)
+                    database.markSynced(transaction.id, item.id)
+                    synced += 1
+                    success = true
+                } catch (e: Throwable) {
+                    retryCount++
+                    println("SyncWorker: Attempt $retryCount failed for ${transaction.id}: ${e.message}")
+                    
+                    if (retryCount > maxRetries) {
+                        println("SyncWorker: Final failure for ${transaction.id}. Marking as failed.")
+                        database.markFailed(transaction.id)
+                        failed += 1
+                    }
+                }
             }
         }
 

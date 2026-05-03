@@ -12,7 +12,7 @@ import kotlinx.datetime.toLocalDateTime
 
 class LedgerRepository(
     private val database: LedgerDatabase = createLedgerDatabase(),
-    private val syncWorker: SyncWorker = SyncWorker(database, com.vellum.ledger.sync.LedgerApi()),
+    private val syncWorker: SyncWorker = SyncWorker(database, com.vellum.ledger.sync.KtorLedgerApi()),
 ) {
     val ledger: StateFlow<LedgerSnapshot> = database.state
 
