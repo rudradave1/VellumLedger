@@ -34,6 +34,9 @@ fun SettingsScreen(
     isSyncing: Boolean,
     onExportCSV: () -> Unit,
     onClearData: () -> Unit,
+    onPopulateDemoData: () -> Unit = {},
+    dailyBudget: Double = 0.0,
+    onDailyBudgetChange: (Double) -> Unit = {},
     onBack: () -> Unit,
     onCurrencyChange: (String) -> Unit
 ) {
@@ -41,6 +44,8 @@ fun SettingsScreen(
     var showCurrencyDialog by remember { mutableStateOf(false) }
     var showAboutDialog by remember { mutableStateOf(false) }
     var showClearConfirm by remember { mutableStateOf(false) }
+    var showDemoConfirm by remember { mutableStateOf(false) }
+    var showBudgetDialog by remember { mutableStateOf(false) }
     Scaffold(
         topBar = {
             CenterAlignedTopAppBar(
@@ -118,6 +123,8 @@ fun SettingsScreen(
             item {
                 SettingsSection(title = "Data", icon = Icons.Outlined.Storage) {
                     Column {
+                        SettingsItem(title = "Load Demo Data", showArrow = true, onClick = { showDemoConfirm = true })
+                        HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.outline.copy(alpha = 0.05f))
                         SettingsItem(title = "Export Data (CSV)", showArrow = true, onClick = onExportCSV)
                         HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.outline.copy(alpha = 0.05f))
                         SettingsItem(title = "Clear Local Data", color = Color(0xFFEF4444), onClick = { showClearConfirm = true })
@@ -128,6 +135,13 @@ fun SettingsScreen(
             item {
                 SettingsSection(title = "Preferences", icon = Icons.Outlined.Settings) {
                     Column {
+                        SettingsItem(
+                            title = "Daily Spending Limit", 
+                            value = if (dailyBudget > 0) com.vellum.ledger.ui.util.formatMoney(dailyBudget, currency) else "Not Set", 
+                            showArrow = true,
+                            onClick = { showBudgetDialog = true }
+                        )
+                        HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.outline.copy(alpha = 0.05f))
                         SettingsItem(
                             title = "Default Currency", 
                             value = currency, 
@@ -152,7 +166,7 @@ fun SettingsScreen(
                     Column {
                         SettingsItem(title = "App Version", value = com.vellum.ledger.data.appVersion)
                         HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.outline.copy(alpha = 0.05f))
-                        SettingsItem(title = "About LedgerSync", showArrow = true, onClick = { showAboutDialog = true })
+                        SettingsItem(title = "About VellumLedger", showArrow = true, onClick = { showAboutDialog = true })
                     }
                 }
             }
@@ -168,6 +182,17 @@ fun SettingsScreen(
             onConfirm = { 
                 onCurrencyChange(it)
                 showCurrencyDialog = false 
+            }
+        )
+    }
+
+    if (showBudgetDialog) {
+        BudgetDialog(
+            currentBudget = dailyBudget,
+            onDismiss = { showBudgetDialog = false },
+            onConfirm = { 
+                onDailyBudgetChange(it)
+                showBudgetDialog = false 
             }
         )
     }
@@ -194,6 +219,27 @@ fun SettingsScreen(
             },
             dismissButton = {
                 TextButton(onClick = { showClearConfirm = false }) { Text("Cancel") }
+            }
+        )
+    }
+
+    if (showDemoConfirm) {
+        AlertDialog(
+            onDismissRequest = { showDemoConfirm = false },
+            title = { Text("Load Demo Data?") },
+            text = { Text("This will clear your current data and replace it with realistic demo data for testing and screenshots.") },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        onPopulateDemoData()
+                        showDemoConfirm = false
+                    }
+                ) {
+                    Text("Load Demo")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDemoConfirm = false }) { Text("Cancel") }
             }
         )
     }
@@ -241,6 +287,45 @@ fun CurrencySelectionDialog(
 }
 
 @Composable
+fun BudgetDialog(
+    currentBudget: Double,
+    onDismiss: () -> Unit,
+    onConfirm: (Double) -> Unit
+) {
+    var text by remember { mutableStateOf(if (currentBudget > 0) currentBudget.toString() else "") }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Daily Spending Limit") },
+        text = {
+            Column {
+                Text(
+                    "Set a daily budget to track your spending habits. Set to 0 to disable.",
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                    modifier = Modifier.padding(bottom = 16.dp)
+                )
+                OutlinedTextField(
+                    value = text,
+                    onValueChange = { if (it.isEmpty() || it.toDoubleOrNull() != null) text = it },
+                    label = { Text("Daily Budget") },
+                    modifier = Modifier.fillMaxWidth(),
+                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                        keyboardType = androidx.compose.ui.text.input.KeyboardType.Number
+                    ),
+                    singleLine = true
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = { onConfirm(text.toDoubleOrNull() ?: 0.0) }) { Text("Save") }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Cancel") }
+        }
+    )
+}
+
+@Composable
 fun AboutDialog(onDismiss: () -> Unit) {
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -256,7 +341,7 @@ fun AboutDialog(onDismiss: () -> Unit) {
                     fontSize = 14.sp
                 )
                 Spacer(Modifier.height(16.dp))
-                Text("© 2026 LedgerSync Team", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f))
+                Text("© 2026 VellumLedger Team", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f))
             }
         },
         confirmButton = {

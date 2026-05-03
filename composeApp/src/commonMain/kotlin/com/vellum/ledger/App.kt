@@ -51,6 +51,7 @@ fun App() {
     val autoSync by viewModel.autoSync.collectAsState()
     val lastSyncedMessage by viewModel.lastSyncedMessage.collectAsState()
     val currency by viewModel.currency.collectAsState()
+    val dailyBudget by viewModel.dailyBudget.collectAsState()
     
     var currentScreen by remember { mutableStateOf(Screen.Home) }
     var exportCsvData by remember { mutableStateOf<String?>(null) }
@@ -119,7 +120,8 @@ fun App() {
                         }
                         Screen.Analytics -> AnalyticsScreen(
                             ledger = ledger,
-                            onViewReport = { showReportDialog = true }
+                            onViewReport = { showReportDialog = true },
+                            onRefreshSummary = { viewModel.refreshSummary() }
                         )
                         Screen.AddTransaction -> AddTransactionScreen(
                             onSave = { amount, type, category, note, timestamp ->
@@ -142,6 +144,9 @@ fun App() {
                                     exportCsvData = viewModel.exportCSV()
                                 },
                                 onClearData = { viewModel.clearAll() },
+                                onPopulateDemoData = { viewModel.populateDemoData() },
+                                dailyBudget = dailyBudget,
+                                onDailyBudgetChange = { viewModel.setDailyBudget(it) },
                                 onBack = { currentScreen = Screen.Home },
                                 onCurrencyChange = { viewModel.setCurrency(it) }
                             )

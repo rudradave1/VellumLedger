@@ -40,6 +40,16 @@ class LedgerViewModel(private val repository: LedgerRepository) : ViewModel() {
             .map { it.settings.currency }
             .stateIn(viewModelScope, SharingStarted.Eagerly, ledger.value.settings.currency)
 
+    val dailyBudget: StateFlow<Double> =
+        ledger
+            .map { it.settings.dailyBudget }
+            .stateIn(viewModelScope, SharingStarted.Eagerly, ledger.value.settings.dailyBudget)
+
+    val monthlySummary: StateFlow<String?> =
+        ledger
+            .map { it.settings.monthlySummary }
+            .stateIn(viewModelScope, SharingStarted.Eagerly, ledger.value.settings.monthlySummary)
+
     val lastSyncedMessage: StateFlow<String> =
         ledger
             .map { snapshot -> formatLastSync(snapshot.settings.lastSyncAtMillis, nowMillis = currentTimeMillis()) }
@@ -94,6 +104,10 @@ class LedgerViewModel(private val repository: LedgerRepository) : ViewModel() {
         viewModelScope.launch { repository.setCurrency(currency) }
     }
 
+    fun setDailyBudget(amount: Double) {
+        viewModelScope.launch { repository.setDailyBudget(amount) }
+    }
+
     fun retryTransaction(transactionId: String) {
         viewModelScope.launch {
             repository.retryTransaction(transactionId)
@@ -117,8 +131,18 @@ class LedgerViewModel(private val repository: LedgerRepository) : ViewModel() {
         viewModelScope.launch { repository.clearAll() }
     }
 
+    fun populateDemoData() {
+        viewModelScope.launch { repository.populateDemoData() }
+    }
+
     fun exportCSV(): String {
         return repository.getCsvData()
+    }
+
+    fun refreshSummary(force: Boolean = false) {
+        viewModelScope.launch {
+            repository.refreshMonthlySummary(force)
+        }
     }
 }
 

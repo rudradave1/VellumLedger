@@ -32,6 +32,8 @@ import com.vellum.ledger.domain.LedgerTransaction
 import com.vellum.ledger.domain.SyncStatus
 import com.vellum.ledger.domain.TransactionType
 import com.vellum.ledger.ui.theme.*
+import kotlinx.datetime.*
+import com.vellum.ledger.data.currentTimeMillis
 import kotlin.math.abs
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -56,7 +58,7 @@ fun HomeScreen(
                         )
                         Spacer(Modifier.width(8.dp))
                         Text(
-                            "LedgerSync",
+                            "VellumLedger",
                             color = MaterialTheme.colorScheme.onSurface,
                             fontWeight = FontWeight.ExtraBold,
                             fontSize = 22.sp,
@@ -116,6 +118,12 @@ fun HomeScreen(
                 )
             }
 
+            if (ledger.settings.dailyBudget > 0) {
+                item {
+                    DailyBudgetCard(ledger)
+                }
+            }
+
             item {
                 Text(
                     stringResource(Res.string.recent_transactions),
@@ -144,6 +152,101 @@ fun HomeScreen(
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+fun DailyBudgetCard(ledger: LedgerSnapshot) {
+    val currency = LocalCurrency.current
+    val budget = ledger.settings.dailyBudget
+    
+    val todaySpending = remember(ledger.transactions) {
+        val now = currentTimeMillis()
+        val timeZone = TimeZone.currentSystemDefault()
+        val today = kotlinx.datetime.Instant.fromEpochMilliseconds(now).toLocalDateTime(timeZone).date
+        val startOfDay = today.atStartOfDayIn(timeZone).toEpochMilliseconds()
+        
+        ledger.transactions
+            .filter { it.createdAt >= startOfDay && it.type == TransactionType.Expense }
+            .sumOf { it.amount }
+    }
+
+    val remaining = budget - todaySpending
+    val progress = (todaySpending / budget).toFloat().coerceIn(0f, 1f)
+    val isOverBudget = todaySpending > budget
+    
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(24.dp),
+        color = MaterialTheme.colorScheme.surface,
+        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.05f))
+    ) {
+        Column(modifier = Modifier.padding(20.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column {
+                    Text(
+                        "Daily Spending Limit",
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                    )
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        if (remaining >= 0) {
+                            "${formatMoney(remaining, currency)} left for today"
+                        } else {
+                            "${formatMoney(0.0, currency)} left · Over by ${formatMoney(abs(remaining), currency)}"
+                        },
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = if (isOverBudget) Color(0xFFEF4444) else MaterialTheme.colorScheme.onSurface
+                    )
+                }
+                
+                Box(
+                    modifier = Modifier
+                        .size(40.dp)
+                        .background(
+                            (if (isOverBudget) Color(0xFFEF4444) else MaterialTheme.colorScheme.primary).copy(alpha = 0.1f),
+                            CircleShape
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        if (isOverBudget) Icons.Outlined.WarningAmber else Icons.Outlined.Timer,
+                        contentDescription = null,
+                        tint = if (isOverBudget) Color(0xFFEF4444) else MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+            }
+            
+            Spacer(Modifier.height(16.dp))
+            
+            LinearProgressIndicator(
+                progress = { progress },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(8.dp)
+                    .clip(CircleShape),
+                color = if (progress > 0.9f) Color(0xFFEF4444) else if (progress > 0.7f) Color(0xFFF59E0B) else MaterialTheme.colorScheme.primary,
+                trackColor = MaterialTheme.colorScheme.surfaceVariant,
+                strokeCap = androidx.compose.ui.graphics.StrokeCap.Round
+            )
+            
+            Spacer(Modifier.height(12.dp))
+            
+            Text(
+                if (isOverBudget) "Over limit" else if (progress > 0.8f) "Almost at limit" else "On track",
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Medium,
+                color = if (isOverBudget) Color(0xFFEF4444) else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+            )
         }
     }
 }

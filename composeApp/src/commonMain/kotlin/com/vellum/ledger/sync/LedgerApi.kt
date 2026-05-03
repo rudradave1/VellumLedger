@@ -16,6 +16,12 @@ interface LedgerApi {
      * Throws [SyncException] if the sync fails.
      */
     suspend fun push(transaction: LedgerTransaction)
+
+    /**
+     * Requests a monthly summary insight from the server.
+     * Returns the insight string.
+     */
+    suspend fun requestMonthlySummary(transactions: List<LedgerTransaction>): String
 }
 
 class KtorLedgerApi(
@@ -51,6 +57,29 @@ class KtorLedgerApi(
         
         println("LedgerApi: Successfully synced transaction ${transaction.id}")
     }
+
+    override suspend fun requestMonthlySummary(transactions: List<LedgerTransaction>): String {
+        val response = try {
+            client.post("$BASE_URL/insights/monthly") {
+                contentType(ContentType.Application.Json)
+                header(HttpHeaders.Authorization, "Bearer ${userSession.getToken()}")
+                setBody(transactions)
+            }
+        } catch (e: Exception) {
+            println("LedgerApi: Network Error: ${e.message}")
+            throw SyncException("Network error: ${e.message}")
+        }
+
+        return when (response.status) {
+            HttpStatusCode.OK -> response.bodyAsText()
+            HttpStatusCode.TooManyRequests -> "Summary already generated this month. Check back later."
+            else -> {
+                val errorBody = response.bodyAsText().ifBlank { response.status.description }
+                println("LedgerApi: Summary request failed (${response.status}): $errorBody")
+                throw SyncException("Failed to get summary: $errorBody")
+            }
+        }
+    }
 }
 
 class SyncException(message: String) : Exception(message)
@@ -82,5 +111,9 @@ typealias LedgerApiImpl = KtorLedgerApi
 class FakeLedgerApi(private val randomFail: Boolean = false) : LedgerApi {
     override suspend fun push(transaction: LedgerTransaction) {
         if (randomFail && (0..10).random() > 7) throw SyncException("Random failure")
+    }
+
+    override suspend fun requestMonthlySummary(transactions: List<LedgerTransaction>): String {
+        return "This is a fake AI insight summary for your transactions."
     }
 }

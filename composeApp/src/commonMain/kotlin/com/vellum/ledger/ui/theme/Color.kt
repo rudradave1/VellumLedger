@@ -41,7 +41,7 @@ val SurfaceContainer = Color(0xFFEAEDFF)
 val SurfaceContainerHigh = Color(0xFFE2E7FF)
 val SurfaceContainerHighest = Color(0xFFDAE2FD)
 
-// Dark Theme Palette (FinTrack / LedgerSync design)
+// Dark Theme Palette (FinTrack / VellumLedger design)
 val DarkPrimary = Color(0xFFC3C0FF) // primary
 val DarkOnPrimary = Color(0xFF1D00A5) // on-primary
 val DarkBackground = Color(0xFF0B1326) // background

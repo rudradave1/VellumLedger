@@ -99,6 +99,9 @@ internal class SqlDelightLedgerDatabase(
                     isDarkMode = map["dark_mode"]?.toBooleanStrictOrNull() ?: false,
                     lastSyncAtMillis = map["last_sync_at_millis"]?.toLongOrNull(),
                     currency = map["currency"] ?: "USD ($)",
+                    dailyBudget = map["daily_budget"]?.toDoubleOrNull() ?: 0.0,
+                    monthlySummary = map["monthly_summary"],
+                    summaryMonth = map["summary_month"],
                 )
             }
 
@@ -202,6 +205,9 @@ internal class SqlDelightLedgerDatabase(
                 queries.upsertSetting("dark_mode", next.isDarkMode.toString())
                 queries.upsertSetting("last_sync_at_millis", next.lastSyncAtMillis?.toString() ?: "")
                 queries.upsertSetting("currency", next.currency)
+                queries.upsertSetting("daily_budget", next.dailyBudget.toString())
+                queries.upsertSetting("monthly_summary", next.monthlySummary ?: "")
+                queries.upsertSetting("summary_month", next.summaryMonth ?: "")
             }
         }
     }

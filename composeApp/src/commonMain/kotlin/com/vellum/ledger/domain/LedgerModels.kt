@@ -42,6 +42,9 @@ data class LedgerSettings(
     val isDarkMode: Boolean = false,
     val lastSyncAtMillis: Long? = null,
     val currency: String = "USD ($)",
+    val dailyBudget: Double = 0.0,
+    val monthlySummary: String? = null,
+    val summaryMonth: String? = null, // Format: YYYY-MM
 )
 
 @Serializable
