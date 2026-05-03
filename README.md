@@ -1,55 +1,197 @@
-# VellumLedger — Offline-first Finance Tracker
+# VellumLedger
 
-> **Durable, offline-first personal finance tracking with real-time cloud synchronization.**
+> Offline-first personal finance for Android and iOS with a live Ktor sync backend.
 
-VellumLedger is a premium expense management application built with Kotlin Multiplatform. It prioritizes data integrity and user privacy by using an **offline-first architecture**. All data is persisted locally via SQLDelight before being synchronized with a cloud backend via a custom push-based protocol.
+A privacy-focused expense tracker built with Kotlin Multiplatform. Every write lands in SQLDelight first. The network is an enhancement, not a dependency. When connectivity returns, a background sync queue pushes mutations to a real deployed backend with JWT auth and timestamp-based conflict resolution.
 
-## 🏗 Architecture (MVVM + Repository Pattern)
-The project follows a clean, decoupled architecture optimized for Kotlin Multiplatform:
+**This is a complete system** mobile client, local database, sync engine, and a production Ktor + PostgreSQL server-> all in Kotlin.
 
-- **UI Layer (Compose Multiplatform):** Reactive UI built with Material 3. Screens observe state from ViewModels via `StateFlow`.
-- **ViewModel Layer:** Handles UI logic and manages state transitions. Communicates only with the Repository layer.
-- **Repository Layer:** Acts as a single source of truth. Orchestrates data flow between the local database and the remote sync engine.
-- **Sync Engine (Ktor):** A robust synchronization layer that handles background processing, JWT authentication, and network resilience.
-- **Data Layer (SQLDelight):** High-performance local persistence with platform-specific drivers (Android/iOS).
+---
 
-## 🧠 Synchronization Protocol
-VellumLedger treat the network as an enhancement, not a dependency:
-1. **Local-First Writes:** Transactions are immediately saved locally with a `PENDING` status.
-2. **Sync Queue:** Mutations are enqueued. A `SyncWorker` processes them in the background.
-3. **DTO Mapping:** Domain models are mapped to `NetworkTransaction` DTOs, ensuring strict backend contract compliance.
-4. **Resiliency:** Implements exponential backoff and manual retry mechanisms for failed syncs.
+## Live Backend
 
-## 🛠 Tech Stack
-- **Mobile:** Kotlin Multiplatform, Compose Multiplatform, SQLDelight, Ktor Client.
-- **Backend:** Ktor Server, Exposed ORM, PostgreSQL (Railway).
-- **Security:** JWT (JSON Web Tokens) Authentication.
+The sync server is deployed on Railway and accepting requests:
 
-## 🧪 Proof of Work
-### API Health Check
 ```bash
+# Health check
 curl https://vellum-ledger-api-production.up.railway.app/health
+
+# Register
+curl -X POST https://vellum-ledger-api-production.up.railway.app/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{"email":"test@example.com","password":"password123"}'
+
+# Pull transactions after sync (replace TOKEN)
+curl "https://vellum-ledger-api-production.up.railway.app/transactions/pull?lastSync=0" \
+  -H "Authorization: Bearer TOKEN"
 ```
 
-### Sync Verification
-The system uses a strict push protocol:
-- **Authorization**: Bearer JWT included in all sync requests.
-- **Contract**: Multi-transaction push support via `PushRequest` wrapper.
-- **Status Tracking**: Full lifecycle tracking: `PENDING → SYNCING → SYNCED | FAILED`.
+Backend source: [vellum-ledger-api](https://github.com/rudradave1/vellum-ledger-api)-> Ktor · Exposed ORM · PostgreSQL · Railway
 
-## 🏗 Project Structure
+---
+
+## Architecture
+
+```
+┌─────────────────────────────────────────────────┐
+│           Compose Multiplatform UI              │
+│     Material 3 · StateFlow · Dark/Light         │
+└───────────────────┬─────────────────────────────┘
+                    │
+┌───────────────────▼─────────────────────────────┐
+│              LedgerViewModel                    │
+│        StateFlow · Coroutines · MVVM            │
+└──────────┬────────────────────────┬─────────────┘
+           │                        │
+┌──────────▼──────────┐  ┌──────────▼──────────────┐
+│  LedgerRepository   │  │      Sync Engine         │
+│  Single source      │  │  SyncQueue · SyncWorker  │
+│  of truth           │  │  Ktor Client · JWT       │
+└──────────┬──────────┘  └──────────┬───────────────┘
+           │                        │
+┌──────────▼────────────────────────▼───────────────┐
+│                 SQLDelight Database               │
+│      Transactions · Cards · SyncQueue tables      │
+│  expect/actual drivers: Android · iOS (Native)    │
+└───────────────────────────────────────────────────┘
+                    │ push/pull
+┌───────────────────▼───────────────────────────────┐
+│            Ktor Server (Railway)                  │
+│     PostgreSQL · Exposed ORM · JWT Auth           │
+│     Conflict resolution: updatedAt wins           │
+└───────────────────────────────────────────────────┘
+```
+
+---
+
+## How the sync works
+
+Every transaction goes through a strict lifecycle:
+
+```
+User action
+    → Write to SQLDelight (status: PENDING)
+    → SyncQueue enqueues mutation
+    → SyncWorker picks up on next cycle
+    → POST /transactions/push with JWT
+    → Server applies timestamp conflict resolution
+    → Status updated: SYNCED or FAILED
+    → UI reflects final state via StateFlow
+```
+
+**Conflict resolution rule:** `updatedAt` timestamp wins. If the server holds a newer version of a transaction, the push is rejected and the server version is returned on next pull. The mobile app never silently overwrites server state.
+
+**Failure handling:** Failed syncs stay `PENDING` with exponential backoff. The `GlobalErrorHandler` surfaces network and DB errors via Snackbar-> nothing fails silently.
+
+---
+
+## Key architectural decisions
+
+**Why SQLDelight over Room?**
+Shared schema between Android and iOS in `commonMain`. One set of queries, two platform drivers. Room is Android-only.
+
+**Why a SyncQueue pattern instead of inline sync?**
+Writes succeed immediately regardless of network state. The queue decouples the user action from the network call. connectivity is irrelevant to the write path.
+
+**Why Ktor for both client and server?**
+Same HTTP library across mobile client and backend. The `NetworkTransaction` DTO contract is defined once and shared. No translation layer between what the client sends and what the server expects.
+
+**Why timestamp-based conflict resolution?**
+Simple, auditable, and correct for a single-user finance app. Last write wins by `updatedAt`. The server is the final arbiter. the mobile app never assumes its version is canonical.
+
+---
+
+## Features
+
+| Feature | Status |
+|---|---|
+| Dashboard -> real-time balance, income, expense | ✅ |
+| Add / categorize transactions (income + expense) | ✅ |
+| Swipeable card wallet with custom hex color themes | ✅ |
+| 7-day spending trend chart | ✅ |
+| Category breakdown with percentage analytics | ✅ |
+| Weekly / Monthly / Yearly period comparison | ✅ |
+| Compact number formatting (K / M / B / T) | ✅ |
+| Export transactions to CSV | ✅ |
+| Native system share for CSV exports | ✅ |
+| Animated sync status indicators per transaction | ✅ |
+| Real-time exchange rate engine | ✅ |
+| Biometric lock (Android + iOS) | ✅ |
+| SQLCipher database encryption | ✅ |
+| Dark mode (system-aware) | ✅ |
+| JWT authentication with 30-day token expiry | ✅ |
+| Live backend-> push/pull sync over HTTPS | ✅ |
+| Crash reporting (Crashlytics) | 🔧 Roadmap |
+| iOS TestFlight distribution | 🔧 Roadmap |
+
+---
+
+## Tech stack
+
+| Layer | Technology |
+|---|---|
+| Mobile language | Kotlin Multiplatform |
+| UI | Compose Multiplatform · Material 3 |
+| Local database | SQLDelight 2.0 |
+| Networking | Ktor Client 2.3 |
+| Backend framework | Ktor Server 2.3 |
+| Backend ORM | Exposed |
+| Backend database | PostgreSQL (Railway) |
+| Authentication | JWT (30-day expiry) |
+| Encryption | SQLCipher |
+| Serialization | Kotlinx Serialization |
+| Concurrency | Kotlinx Coroutines · Flow |
+| Architecture | MVVM · Repository pattern · Clean layers |
+
+---
+
+## Project structure
+
 ```
 VellumLedger/
 ├── composeApp/
 │   ├── commonMain/
-│   │   ├── sync/           # Ktor API, Network DTOs, UserSession
-│   │   ├── repository/     # LedgerRepository (Data Orchestration)
-│   │   ├── database/       # SQLDelight & LedgerDatabase implementation
-│   │   └── ui/             # Screens, ViewModels, Theme
-│   ├── androidMain/        # Android Drivers & Biometrics
-│   └── iosMain/            # iOS Native Drivers
-└── server/                 # Ktor + PostgreSQL Backend
+│   │   ├── sync/           # Ktor client, DTOs, UserSession, SyncWorker
+│   │   ├── repository/     # LedgerRepository-> data orchestration
+│   │   ├── database/       # SQLDelight schema + LedgerDatabase
+│   │   └── ui/             # Screens, ViewModels, theme, error handler
+│   ├── androidMain/        # AndroidSqliteDriver, biometric auth
+│   └── iosMain/            # NativeSqliteDriver, biometric auth
+└── iosApp/                 # SwiftUI shell (thin wrapper)
 ```
 
+Backend: [github.com/rudradave1/vellum-ledger-api](https://github.com/rudradave1/vellum-ledger-api)
+
 ---
-*Built with ❤️ by Rudra Dave*
+
+## Running locally
+
+**Android**
+```bash
+./gradlew :composeApp:assembleDebug
+```
+
+**iOS**
+```bash
+open iosApp/iosApp.xcworkspace
+```
+
+Requires JDK 17+, Android Studio Hedgehog or newer, Xcode 15+ for iOS.
+
+The app runs fully offline without a backend connection. Sync activates when the server is reachable and a user session exists.
+
+---
+
+## What to look at first
+
+If you're reading this as a code or architecture reference:
+
+- **Sync lifecycle:** `composeApp/commonMain/sync/SyncWorker.kt`
+- **Conflict resolution:** `composeApp/commonMain/sync/LedgerApi.kt`
+- **Repository as source of truth:** `composeApp/commonMain/repository/LedgerRepository.kt`
+- **KMP database boundary:** `composeApp/androidMain/` and `iosMain/`-> platform driver injection
+- **Backend push/pull:** [vellum-ledger-api/TransactionRoutes.kt](https://github.com/rudradave1/vellum-ledger-api)
+
+---
+
+MIT License
