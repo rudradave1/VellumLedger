@@ -39,7 +39,7 @@ data class LedgerCard(
 
 data class LedgerSettings(
     val autoSync: Boolean = true,
-    val isDarkMode: Boolean = false,
+    val isDarkMode: Boolean? = null,
     val lastSyncAtMillis: Long? = null,
     val currency: String = "USD ($)",
     val dailyBudget: Double = 0.0,

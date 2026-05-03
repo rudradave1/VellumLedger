@@ -48,11 +48,14 @@ fun App() {
     
     val ledger by viewModel.ledger.collectAsState()
     val isSyncing by viewModel.isSyncing.collectAsState()
-    val isDarkMode by viewModel.isDarkMode.collectAsState()
+    val isDarkModePref by viewModel.isDarkMode.collectAsState()
+    val isSystemDark = androidx.compose.foundation.isSystemInDarkTheme()
+    val isDarkMode = isDarkModePref ?: isSystemDark
     val autoSync by viewModel.autoSync.collectAsState()
     val lastSyncedMessage by viewModel.lastSyncedMessage.collectAsState()
     val currency by viewModel.currency.collectAsState()
     val dailyBudget by viewModel.dailyBudget.collectAsState()
+    val isSummaryLoading by viewModel.isSummaryLoading.collectAsState()
     
     var currentScreen by remember { mutableStateOf(Screen.Home) }
     var exportCsvData by remember { mutableStateOf<String?>(null) }
@@ -123,6 +126,7 @@ fun App() {
                         }
                         Screen.Analytics -> AnalyticsScreen(
                             ledger = ledger,
+                            isSummaryLoading = isSummaryLoading,
                             onViewReport = { showReportDialog = true },
                             onRefreshSummary = { force -> viewModel.refreshSummary(force) }
                         )

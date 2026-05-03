@@ -10,6 +10,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -19,6 +20,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
@@ -33,6 +35,7 @@ import com.vellum.ledger.domain.SyncStatus
 import com.vellum.ledger.domain.TransactionType
 import com.vellum.ledger.ui.theme.*
 import kotlinx.datetime.*
+import kotlinx.coroutines.delay
 import com.vellum.ledger.data.currentTimeMillis
 import kotlin.math.abs
 
@@ -232,14 +235,30 @@ fun HomeScreen(
                     }
                 }
             } else {
-                items(filteredTransactions, key = { it.id }) { transaction ->
-                    SwipeToDeleteContainer(
-                        onDelete = { onDeleteTransaction(transaction.id) }
+                itemsIndexed(filteredTransactions, key = { _, it -> it.id }) { index, transaction ->
+                    var isVisible by remember { mutableStateOf(index > 8) }
+                    LaunchedEffect(Unit) {
+                        if (!isVisible) {
+                            val delayTime = (index.coerceAtMost(5) * 50).toLong()
+                            kotlinx.coroutines.delay(delayTime)
+                            isVisible = true
+                        }
+                    }
+
+                    val density = androidx.compose.ui.platform.LocalDensity.current
+                    AnimatedVisibility(
+                        visible = isVisible,
+                        enter = fadeIn(animationSpec = tween(300)) + 
+                                slideInVertically(animationSpec = tween(300)) { with(density) { 20.dp.roundToPx() } }
                     ) {
-                        TransactionListItem(
-                            transaction = transaction,
-                            onRetry = { onRetryTransaction(transaction.id) }
-                        )
+                        SwipeToDeleteContainer(
+                            onDelete = { onDeleteTransaction(transaction.id) }
+                        ) {
+                            TransactionListItem(
+                                transaction = transaction,
+                                onRetry = { onRetryTransaction(transaction.id) }
+                            )
+                        }
                     }
                 }
             }
@@ -425,6 +444,16 @@ fun TotalBalanceCard(balance: Double, income: Double, expense: Double) {
     val currency = LocalCurrency.current
     var isBalanceVisible by remember { mutableStateOf(true) }
     
+    var targetBalance by remember { mutableStateOf(0f) }
+    LaunchedEffect(balance) {
+        targetBalance = balance.toFloat()
+    }
+    
+    val animatedBalance by animateFloatAsState(
+        targetValue = targetBalance,
+        animationSpec = tween(durationMillis = 800, easing = FastOutSlowInEasing)
+    )
+    
     Surface(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(28.dp),
@@ -473,7 +502,7 @@ fun TotalBalanceCard(balance: Double, income: Double, expense: Double) {
                 
                 Text(
                     text = if (isBalanceVisible) {
-                        formatMoney(balance, currency, compact = balance > 1_000_000_000_000)
+                        formatMoney(animatedBalance.toDouble(), currency, compact = balance > 1_000_000_000_000)
                     } else {
                         "••••••••"
                     },

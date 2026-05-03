@@ -117,8 +117,8 @@ fun SettingsScreen(
             item {
                 SettingsSection(title = "Data", icon = Icons.Outlined.Storage) {
                     Column {
-                        SettingsItem(title = "Load Demo Data", showArrow = true, onClick = { showDemoConfirm = true })
-                        HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.outline.copy(alpha = 0.05f))
+                        //SettingsItem(title = "Load Demo Data", showArrow = true, onClick = { showDemoConfirm = true })
+                        //HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.outline.copy(alpha = 0.05f))
                         SettingsItem(title = "Export Data (CSV)", showArrow = true, onClick = onExportCSV)
                         HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.outline.copy(alpha = 0.05f))
                         SettingsItem(title = "Clear Local Data", color = Color(0xFFEF4444), onClick = { showClearConfirm = true })

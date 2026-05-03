@@ -96,7 +96,7 @@ internal class SqlDelightLedgerDatabase(
                 val map = rows.associate { it.key to it.value_ }
                 LedgerSettings(
                     autoSync = map["auto_sync"]?.toBooleanStrictOrNull() ?: true,
-                    isDarkMode = map["dark_mode"]?.toBooleanStrictOrNull() ?: false,
+                    isDarkMode = map["dark_mode"]?.takeIf { it.isNotBlank() }?.toBooleanStrictOrNull(),
                     lastSyncAtMillis = map["last_sync_at_millis"]?.toLongOrNull(),
                     currency = map["currency"] ?: "USD ($)",
                     dailyBudget = map["daily_budget"]?.toDoubleOrNull() ?: 0.0,
@@ -202,7 +202,7 @@ internal class SqlDelightLedgerDatabase(
         withContext(Dispatchers.Default) {
             queries.transaction {
                 queries.upsertSetting("auto_sync", next.autoSync.toString())
-                queries.upsertSetting("dark_mode", next.isDarkMode.toString())
+                queries.upsertSetting("dark_mode", next.isDarkMode?.toString() ?: "")
                 queries.upsertSetting("last_sync_at_millis", next.lastSyncAtMillis?.toString() ?: "")
                 queries.upsertSetting("currency", next.currency)
                 queries.upsertSetting("daily_budget", next.dailyBudget.toString())

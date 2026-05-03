@@ -93,7 +93,10 @@ class KtorLedgerApi(
 
         return when (response.status) {
             HttpStatusCode.OK -> responseBody
-            HttpStatusCode.TooManyRequests -> "Summary already generated this month. Check back later."
+            HttpStatusCode.TooManyRequests -> {
+                println("LedgerApi: Rate limit hit (429).")
+                throw SyncException("Rate limit reached")
+            }
             else -> {
                 println("LedgerApi: Summary request failed (${response.status}): $responseBody")
                 throw SyncException("Failed to get summary: $responseBody")

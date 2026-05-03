@@ -18,6 +18,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.animation.core.*
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Brush
@@ -34,6 +35,7 @@ import kotlin.math.abs
 @Composable
 fun AnalyticsScreen(
     ledger: LedgerSnapshot,
+    isSummaryLoading: Boolean = false,
     onViewReport: () -> Unit = {},
     onRefreshSummary: (Boolean) -> Unit = {}
 ) {
@@ -41,8 +43,7 @@ fun AnalyticsScreen(
     val tabs = listOf("Weekly", "Monthly", "Yearly")
 
     LaunchedEffect(Unit) {
-        println("AnalyticsScreen: LaunchedEffect triggering onRefreshSummary")
-        onRefreshSummary(false)
+        // AI insights are now on-demand only. No auto-refresh in LaunchedEffect.
     }
 
     Scaffold(
@@ -112,11 +113,33 @@ fun AnalyticsScreen(
                 InsightsCard(ledger)
             }
 
-            ledger.settings.monthlySummary?.let { summary ->
+            val settings = ledger.settings
+            val now = currentTimeMillis()
+            val tz = TimeZone.currentSystemDefault()
+            val today = Instant.fromEpochMilliseconds(now).toLocalDateTime(tz).date
+            val currentMonthKey = "${today.year}-${today.month.number.toString().padStart(2, '0')}"
+            
+            val summary = settings.monthlySummary
+            val isCurrentMonth = settings.summaryMonth == currentMonthKey
+            val isErrorText = summary?.contains("check back later", ignoreCase = true) == true
+            
+            if (isSummaryLoading) {
+                item {
+                    Text("Monthly AI Summary", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                    Spacer(Modifier.height(12.dp))
+                    ShimmerSummaryCard()
+                }
+            } else if (isCurrentMonth && !summary.isNullOrBlank() && !isErrorText) {
                 item {
                     Text("Monthly AI Summary", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
                     Spacer(Modifier.height(12.dp))
                     AiSummaryCard(summary, onRefresh = { onRefreshSummary(true) })
+                }
+            } else {
+                item {
+                    Text("Monthly AI Summary", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                    Spacer(Modifier.height(12.dp))
+                    RequestAiSummaryCard(onRefresh = { onRefreshSummary(true) })
                 }
             }
 
@@ -555,6 +578,86 @@ fun InsightsCard(ledger: LedgerSnapshot) {
                 Text("Not enough data for insights yet. Keep tracking!", fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
+    }
+}
+
+@Composable
+fun RequestAiSummaryCard(onRefresh: () -> Unit) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(24.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.1f)),
+        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.tertiary.copy(alpha = 0.1f))
+    ) {
+        Column(
+            modifier = Modifier.padding(24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            Icon(
+                Icons.Outlined.AutoAwesome,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.tertiary,
+                modifier = Modifier.size(32.dp)
+            )
+            Spacer(Modifier.height(16.dp))
+            Text(
+                "Generate Monthly Insights",
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            Spacer(Modifier.height(8.dp))
+            Text(
+                "Get a personalized AI analysis of your spending habits for this month.",
+                fontSize = 13.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                modifier = Modifier.padding(horizontal = 8.dp)
+            )
+            Spacer(Modifier.height(20.dp))
+            Button(
+                onClick = onRefresh,
+                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.tertiary),
+                shape = RoundedCornerShape(16.dp)
+            ) {
+                Text("Analyze Now", modifier = Modifier.padding(horizontal = 12.dp))
+            }
+        }
+    }
+}
+
+@Composable
+fun ShimmerSummaryCard() {
+    val transition = rememberInfiniteTransition()
+    val translateAnim by transition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1000f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 1000, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        )
+    )
+
+    val shimmerColors = listOf(
+        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
+        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f),
+        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
+    )
+
+    val brush = Brush.linearGradient(
+        colors = shimmerColors,
+        start = androidx.compose.ui.geometry.Offset(translateAnim - 500f, 0f),
+        end = androidx.compose.ui.geometry.Offset(translateAnim, 0f)
+    )
+
+    Card(
+        modifier = Modifier.fillMaxWidth().height(160.dp),
+        shape = RoundedCornerShape(24.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.05f))
+    ) {
+        Box(modifier = Modifier.fillMaxSize().background(brush))
     }
 }
 

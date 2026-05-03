@@ -33,12 +33,9 @@ class SyncWorker(
                 try {
                     database.markSyncing(transaction.id)
                     
-                    // Add a small artificial delay to show the "syncing" UI state
                     if (retryCount > 0) {
                         println("SyncWorker: Retrying ${transaction.id} (Attempt ${retryCount + 1})...")
                         delay(2000L * retryCount) 
-                    } else {
-                        delay(800)
                     }
 
                     api.push(transaction)

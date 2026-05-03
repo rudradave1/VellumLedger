@@ -25,7 +25,7 @@ class LedgerViewModel(private val repository: LedgerRepository) : ViewModel() {
 
     // ... (rest of the class)
 
-    val isDarkMode: StateFlow<Boolean> =
+    val isDarkMode: StateFlow<Boolean?> =
         ledger
             .map { it.settings.isDarkMode }
             .stateIn(viewModelScope, SharingStarted.Eagerly, ledger.value.settings.isDarkMode)
@@ -61,6 +61,9 @@ class LedgerViewModel(private val repository: LedgerRepository) : ViewModel() {
 
     private val _isSyncing = MutableStateFlow(false)
     val isSyncing: StateFlow<Boolean> = _isSyncing.asStateFlow()
+
+    private val _isSummaryLoading = MutableStateFlow(false)
+    val isSummaryLoading: StateFlow<Boolean> = _isSummaryLoading.asStateFlow()
 
     fun addTransaction(amount: Double, type: TransactionType, category: String, note: String, timestamp: Long) {
         viewModelScope.launch {
@@ -146,8 +149,14 @@ class LedgerViewModel(private val repository: LedgerRepository) : ViewModel() {
     }
 
     fun refreshSummary(force: Boolean = false) {
+        if (_isSummaryLoading.value) return
         viewModelScope.launch {
-            repository.refreshMonthlySummary(force)
+            try {
+                _isSummaryLoading.value = true
+                repository.refreshMonthlySummary(force)
+            } finally {
+                _isSummaryLoading.value = false
+            }
         }
     }
 }

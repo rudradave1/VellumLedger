@@ -124,7 +124,8 @@ class LedgerRepository(
         val settings = ledger.value.settings
         println("LedgerRepository: refreshMonthlySummary: currentMonthKey=$currentMonthKey, settings.summaryMonth=${settings.summaryMonth}, hasSummary=${settings.monthlySummary != null}")
         
-        val isExistingSummaryError = settings.monthlySummary?.startsWith("Error") == true
+        val isExistingSummaryError = settings.monthlySummary?.contains("check back later", ignoreCase = true) == true || 
+                                     settings.monthlySummary?.startsWith("Error") == true
         
         if (!force && settings.summaryMonth == currentMonthKey && settings.monthlySummary != null && !isExistingSummaryError) {
             println("LedgerRepository: Summary already exists for this month, skipping.")
@@ -135,6 +136,11 @@ class LedgerRepository(
         val currentMonthStart = LocalDate(today.year, today.month, 1).atStartOfDayIn(tz).toEpochMilliseconds()
         val currentMonthTransactions = transactions.filter { it.createdAt >= currentMonthStart }
         
+        if (currentMonthTransactions.isEmpty()) {
+            println("LedgerRepository: No transactions for this month, skipping summary.")
+            return@withLock
+        }
+
         println("LedgerRepository: Requesting summary for ${currentMonthTransactions.size} transactions.")
         currentMonthTransactions.forEach { 
             println("LedgerRepository: Transaction: ${it.category}, ${it.amount}, ${it.type}")
