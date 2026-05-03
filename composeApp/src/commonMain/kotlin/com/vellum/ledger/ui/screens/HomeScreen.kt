@@ -44,14 +44,33 @@ fun HomeScreen(
     onSyncClick: () -> Unit,
     onAddClick: () -> Unit,
     onRetryTransaction: (String) -> Unit = {},
+    onDeleteTransaction: (String) -> Unit = {},
+    lastSyncedMessage: String = "",
 ) {
+    var searchQuery by remember { mutableStateOf("") }
+    var selectedCategoryFilter by remember { mutableStateOf("All") }
+    
+    val categories = remember(ledger.transactions) {
+        listOf("All") + ledger.transactions.map { it.category }.distinct().sorted()
+    }
+    
+    val filteredTransactions = remember(ledger.transactions, searchQuery, selectedCategoryFilter) {
+        ledger.transactions.reversed().filter {
+            val matchesSearch = it.note.contains(searchQuery, ignoreCase = true) || 
+                                it.category.contains(searchQuery, ignoreCase = true) ||
+                                it.amount.toString().contains(searchQuery)
+            val matchesCategory = selectedCategoryFilter == "All" || it.category == selectedCategoryFilter
+            matchesSearch && matchesCategory
+        }
+    }
+
     Scaffold(
         topBar = {
             CenterAlignedTopAppBar(
                 title = {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(
-                            Icons.Outlined.Payments, 
+                            Icons.Outlined.AccountBalanceWallet,
                             contentDescription = null, 
                             tint = MaterialTheme.colorScheme.primary,
                             modifier = Modifier.size(28.dp)
@@ -67,24 +86,37 @@ fun HomeScreen(
                     }
                 },
                 actions = {
-                    IconButton(onClick = onSyncClick, enabled = !isSyncing) {
-                        val rotation by animateFloatAsState(
-                            targetValue = if (isSyncing) 360f else 0f,
-                            animationSpec = if (isSyncing) {
-                                infiniteRepeatable(tween(1000, easing = LinearEasing), RepeatMode.Restart)
-                            } else {
-                                spring()
+                    Column(horizontalAlignment = Alignment.End) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            if (lastSyncedMessage.isNotEmpty() && !isSyncing) {
+                                Text(
+                                    lastSyncedMessage,
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                                    modifier = Modifier.padding(end = 4.dp)
+                                )
                             }
-                        )
-                        Icon(
-                            Icons.Outlined.Sync, 
-                            contentDescription = "Sync",
-                            tint = if (isSyncing) MaterialTheme.colorScheme.primary.copy(alpha = 0.5f) else MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(24.dp).rotate(rotation)
-                        )
+                            IconButton(onClick = onSyncClick, enabled = !isSyncing) {
+                                val rotation by animateFloatAsState(
+                                    targetValue = if (isSyncing) 360f else 0f,
+                                    animationSpec = if (isSyncing) {
+                                        infiniteRepeatable(tween(1000, easing = LinearEasing), RepeatMode.Restart)
+                                    } else {
+                                        spring()
+                                    }
+                                )
+                                Icon(
+                                    Icons.Outlined.Sync, 
+                                    contentDescription = "Sync",
+                                    tint = if (isSyncing) MaterialTheme.colorScheme.primary.copy(alpha = 0.5f) else MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(24.dp).rotate(rotation)
+                                )
+                            }
+                        }
                     }
                 },
-                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
+                colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = Color.Transparent
                 )
             )
@@ -125,8 +157,59 @@ fun HomeScreen(
             }
 
             item {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    OutlinedTextField(
+                        value = searchQuery,
+                        onValueChange = { searchQuery = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        placeholder = { Text("Search transactions...") },
+                        leadingIcon = { Icon(Icons.Outlined.Search, contentDescription = null) },
+                        trailingIcon = if (searchQuery.isNotEmpty()) {
+                            {
+                                IconButton(onClick = { searchQuery = "" }) {
+                                    Icon(Icons.Outlined.Close, contentDescription = "Clear")
+                                }
+                            }
+                        } else null,
+                        shape = RoundedCornerShape(16.dp),
+                        singleLine = true,
+                        colors = OutlinedTextFieldDefaults.colors(
+                            unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.1f),
+                            unfocusedContainerColor = MaterialTheme.colorScheme.surface
+                        )
+                    )
+                    
+                    androidx.compose.foundation.lazy.LazyRow(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        contentPadding = PaddingValues(horizontal = 4.dp)
+                    ) {
+                        items(categories) { category ->
+                            FilterChip(
+                                selected = selectedCategoryFilter == category,
+                                onClick = { selectedCategoryFilter = category },
+                                label = { Text(category) },
+                                shape = CircleShape,
+                                colors = FilterChipDefaults.filterChipColors(
+                                    selectedContainerColor = MaterialTheme.colorScheme.primary,
+                                    selectedLabelColor = Color.White
+                                ),
+                                border = FilterChipDefaults.filterChipBorder(
+                                    borderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.1f),
+                                    enabled = true,
+                                    selected = selectedCategoryFilter == category
+                                )
+                            )
+                        }
+                    }
+                }
+            }
+
+            item {
                 Text(
-                    stringResource(Res.string.recent_transactions),
+                    if (searchQuery.isEmpty() && selectedCategoryFilter == "All") 
+                        stringResource(Res.string.recent_transactions)
+                    else 
+                        "Filtered Results (${filteredTransactions.size})",
                     fontSize = 18.sp,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onSurface,
@@ -138,13 +221,21 @@ fun HomeScreen(
                 items(5) {
                     TransactionSkeleton()
                 }
-            } else if (ledger.transactions.isEmpty()) {
+            } else if (filteredTransactions.isEmpty()) {
                 item {
-                    EmptyState(onAddClick)
+                    if (ledger.transactions.isEmpty()) {
+                        EmptyState(onAddClick)
+                    } else {
+                        Box(modifier = Modifier.fillMaxWidth().padding(vertical = 40.dp), contentAlignment = Alignment.Center) {
+                            Text("No transactions match your search.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
                 }
             } else {
-                items(ledger.transactions.reversed(), key = { it.id }) { transaction ->
-                    Box(modifier = Modifier.animateItem()) {
+                items(filteredTransactions, key = { it.id }) { transaction ->
+                    SwipeToDeleteContainer(
+                        onDelete = { onDeleteTransaction(transaction.id) }
+                    ) {
                         TransactionListItem(
                             transaction = transaction,
                             onRetry = { onRetryTransaction(transaction.id) }
@@ -156,6 +247,50 @@ fun HomeScreen(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun SwipeToDeleteContainer(
+    onDelete: () -> Unit,
+    content: @Composable () -> Unit
+) {
+    val dismissState = rememberSwipeToDismissBoxState(
+        confirmValueChange = {
+            if (it == SwipeToDismissBoxValue.EndToStart) {
+                onDelete()
+                true
+            } else false
+        }
+    )
+
+    SwipeToDismissBox(
+        state = dismissState,
+        enableDismissFromStartToEnd = false,
+        backgroundContent = {
+            val color = when (dismissState.dismissDirection) {
+                SwipeToDismissBoxValue.EndToStart -> Color(0xFFEF4444)
+                else -> Color.Transparent
+            }
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .clip(RoundedCornerShape(20.dp))
+                    .background(color)
+                    .padding(horizontal = 20.dp),
+                contentAlignment = Alignment.CenterEnd
+            ) {
+                Icon(
+                    Icons.Outlined.Delete,
+                    contentDescription = "Delete",
+                    tint = Color.White
+                )
+            }
+        }
+    ) {
+        content()
+    }
+}
+
+
 @Composable
 fun DailyBudgetCard(ledger: LedgerSnapshot) {
     val currency = LocalCurrency.current
@@ -164,7 +299,7 @@ fun DailyBudgetCard(ledger: LedgerSnapshot) {
     val todaySpending = remember(ledger.transactions) {
         val now = currentTimeMillis()
         val timeZone = TimeZone.currentSystemDefault()
-        val today = kotlinx.datetime.Instant.fromEpochMilliseconds(now).toLocalDateTime(timeZone).date
+        val today = Instant.fromEpochMilliseconds(now).toLocalDateTime(timeZone).date
         val startOfDay = today.atStartOfDayIn(timeZone).toEpochMilliseconds()
         
         ledger.transactions
@@ -474,13 +609,15 @@ fun TransactionListItem(
                     maxLines = 1,
                     overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                 )
-                Text(
-                    if (transaction.note.isNotBlank()) transaction.note else "No note added", 
-                    fontSize = 12.sp, 
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
-                    maxLines = 1,
-                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
-                )
+                if (transaction.note.isNotBlank()) {
+                    Text(
+                        transaction.note, 
+                        fontSize = 12.sp, 
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                        maxLines = 1,
+                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                    )
+                }
             }
 
             Spacer(Modifier.width(16.dp))

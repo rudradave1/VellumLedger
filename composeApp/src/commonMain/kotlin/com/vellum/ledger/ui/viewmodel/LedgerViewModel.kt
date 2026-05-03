@@ -127,6 +127,12 @@ class LedgerViewModel(private val repository: LedgerRepository) : ViewModel() {
         }
     }
 
+    fun deleteTransaction(transactionId: String) {
+        viewModelScope.launch {
+            repository.deleteTransaction(transactionId)
+        }
+    }
+
     fun clearAll() {
         viewModelScope.launch { repository.clearAll() }
     }

@@ -8,6 +8,7 @@ import io.ktor.client.request.*
 import io.ktor.client.statement.*
 import io.ktor.http.*
 import io.ktor.serialization.kotlinx.json.*
+import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 
 interface LedgerApi {
@@ -37,6 +38,7 @@ class KtorLedgerApi(
         val userId = userSession.getUserId()
         val networkTransaction = transaction.toNetwork(userId)
         val requestBody = PushRequest(transactions = listOf(networkTransaction))
+        println("LedgerApi: Pushing request body: $requestBody")
 
         val response = try {
             client.post("$BASE_URL/transactions/push") {
@@ -59,24 +61,42 @@ class KtorLedgerApi(
     }
 
     override suspend fun requestMonthlySummary(transactions: List<LedgerTransaction>): String {
+        val dtos = transactions.map {
+            TransactionSummaryDto(
+                id = it.id,
+                amount = it.amount,
+                type = it.type.name.uppercase(),
+                category = it.category,
+                note = it.note,
+                createdAt = it.createdAt
+            )
+        }
+        val requestBody = SummaryRequest(transactions = dtos)
+        
+        println("LedgerApi: requestMonthlySummary: Sending ${transactions.size} transactions.")
+        println("LedgerApi: Request Body: ${Json.encodeToString(requestBody)}")
+
         val response = try {
             client.post("$BASE_URL/insights/monthly") {
                 contentType(ContentType.Application.Json)
                 header(HttpHeaders.Authorization, "Bearer ${userSession.getToken()}")
-                setBody(transactions)
+                setBody(requestBody)
             }
         } catch (e: Exception) {
             println("LedgerApi: Network Error: ${e.message}")
             throw SyncException("Network error: ${e.message}")
         }
 
+        val responseBody = response.bodyAsText()
+        println("LedgerApi: Response Status: ${response.status}")
+        println("LedgerApi: Response Body: $responseBody")
+
         return when (response.status) {
-            HttpStatusCode.OK -> response.bodyAsText()
+            HttpStatusCode.OK -> responseBody
             HttpStatusCode.TooManyRequests -> "Summary already generated this month. Check back later."
             else -> {
-                val errorBody = response.bodyAsText().ifBlank { response.status.description }
-                println("LedgerApi: Summary request failed (${response.status}): $errorBody")
-                throw SyncException("Failed to get summary: $errorBody")
+                println("LedgerApi: Summary request failed (${response.status}): $responseBody")
+                throw SyncException("Failed to get summary: $responseBody")
             }
         }
     }
@@ -101,7 +121,7 @@ private fun createDefaultHttpClient() = HttpClient {
                 println("Ktor: $message")
             }
         }
-        level = LogLevel.INFO
+        level = LogLevel.ALL
     }
 }
 

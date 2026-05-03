@@ -1,7 +1,6 @@
 package com.vellum.ledger.ui.screens
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
@@ -168,28 +167,6 @@ fun AddTransactionScreen(
                             onClick = { selectedCategory = category.name },
                         )
                     }
-                    Box(
-                        modifier = Modifier
-                            .size(40.dp)
-                            .background(
-                                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f),
-                                CircleShape
-                            )
-                            .border(
-                                1.dp,
-                                MaterialTheme.colorScheme.outline.copy(alpha = 0.1f),
-                                CircleShape
-                            )
-                            .clickable { },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            Icons.Default.Add,
-                            contentDescription = "Add category",
-                            modifier = Modifier.size(20.dp),
-                            tint = MaterialTheme.colorScheme.outline
-                        )
-                    }
                 }
 
                 Row(
@@ -244,7 +221,18 @@ fun AddTransactionScreen(
 
     if (showDatePicker) {
         val datePickerState = rememberDatePickerState(
-            initialSelectedDateMillis = selectedTimestamp
+            initialSelectedDateMillis = selectedTimestamp,
+            selectableDates = object : SelectableDates {
+                override fun isSelectableDate(utcTimeMillis: Long): Boolean {
+                    // Cap at today (current time)
+                    return utcTimeMillis <= currentTimeMillis()
+                }
+                override fun isSelectableYear(year: Int): Boolean {
+                    val currentYear = Instant.fromEpochMilliseconds(currentTimeMillis())
+                        .toLocalDateTime(TimeZone.currentSystemDefault()).year
+                    return year <= currentYear
+                }
+            }
         )
         DatePickerDialog(
             onDismissRequest = { showDatePicker = false },

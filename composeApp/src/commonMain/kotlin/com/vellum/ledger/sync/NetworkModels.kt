@@ -25,6 +25,21 @@ data class PushRequest(
 )
 
 @Serializable
+data class TransactionSummaryDto(
+    val id: String,
+    val amount: Double,
+    val type: String,
+    val category: String,
+    val note: String,
+    val createdAt: Long
+)
+
+@Serializable
+data class SummaryRequest(
+    val transactions: List<TransactionSummaryDto>
+)
+
+@Serializable
 data class PushResponse(
     val success: Boolean = true,
     val message: String? = null

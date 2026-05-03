@@ -26,6 +26,7 @@ import com.vellum.ledger.ui.screens.AnalyticsScreen
 import com.vellum.ledger.ui.screens.CardsScreen
 import com.vellum.ledger.ui.screens.HomeScreen
 import com.vellum.ledger.ui.screens.SettingsScreen
+import com.vellum.ledger.ui.components.VellumButton
 import com.vellum.ledger.ui.theme.*
 import com.vellum.ledger.ui.util.*
 import com.vellum.ledger.ui.viewmodel.LedgerViewModel
@@ -108,6 +109,8 @@ fun App() {
                                 currentScreen = Screen.AddTransaction 
                             },
                             onRetryTransaction = { id -> viewModel.retryTransaction(id) },
+                            onDeleteTransaction = { id -> viewModel.deleteTransaction(id) },
+                            lastSyncedMessage = lastSyncedMessage,
                         )
                         Screen.Cards -> {
                             CardsScreen(
@@ -121,7 +124,7 @@ fun App() {
                         Screen.Analytics -> AnalyticsScreen(
                             ledger = ledger,
                             onViewReport = { showReportDialog = true },
-                            onRefreshSummary = { viewModel.refreshSummary() }
+                            onRefreshSummary = { force -> viewModel.refreshSummary(force) }
                         )
                         Screen.AddTransaction -> AddTransactionScreen(
                             onSave = { amount, type, category, note, timestamp ->
@@ -147,7 +150,6 @@ fun App() {
                                 onPopulateDemoData = { viewModel.populateDemoData() },
                                 dailyBudget = dailyBudget,
                                 onDailyBudgetChange = { viewModel.setDailyBudget(it) },
-                                onBack = { currentScreen = Screen.Home },
                                 onCurrencyChange = { viewModel.setCurrency(it) }
                             )
                         }
@@ -187,26 +189,58 @@ fun App() {
     if (showReportDialog) {
         AlertDialog(
             onDismissRequest = { showReportDialog = false },
-            title = { Text("Full Financial Report") },
+            title = { 
+                Column {
+                    Text("Financial Summary", fontWeight = FontWeight.ExtraBold)
+                    Text(
+                        "Overview of your income and expenses.",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Normal,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                    )
+                }
+            },
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
                     val income = ledger.analytics.totalIncome
                     val expense = ledger.analytics.totalExpense
                     val balance = ledger.analytics.currentBalance
                     
-                    ReportItem("Total Income", income, Color(0xFF10B981))
-                    ReportItem("Total Expense", expense, Color(0xFFEF4444))
-                    HorizontalDivider()
-                    ReportItem("Net Balance", balance, if (balance >= 0) Color(0xFF10B981) else Color(0xFFEF4444))
+                    Surface(
+                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
+                        shape = RoundedCornerShape(16.dp)
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                            ReportItem("Total Income", income, Color(0xFF10B981))
+                            ReportItem("Total Expense", expense, Color(0xFFEF4444))
+                            HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.1f))
+                            ReportItem("Net Cash Flow", balance, if (balance >= 0) Color(0xFF10B981) else Color(0xFFEF4444))
+                        }
+                    }
                     
-                    Spacer(Modifier.height(8.dp))
-                    Text("Transaction Count: ${ledger.transactions.size}", fontSize = 14.sp)
+                    Text(
+                        "Net Cash Flow represents your total earnings minus total spending across all accounts.",
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                        lineHeight = 18.sp
+                    )
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("Transactions", fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                        Text("${ledger.transactions.size}", fontWeight = FontWeight.Bold)
+                    }
                 }
             },
             confirmButton = {
-                Button(onClick = { showReportDialog = false }) {
-                    Text("Got it")
-                }
+                VellumButton(
+                    onClick = { showReportDialog = false },
+                    text = "Close Report",
+                    modifier = Modifier.fillMaxWidth()
+                )
             }
         )
     }

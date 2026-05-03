@@ -74,6 +74,10 @@ class LedgerRepository(
         database.deleteCard(cardId)
     }
 
+    suspend fun deleteTransaction(transactionId: String) {
+        database.deleteTransaction(transactionId)
+    }
+
     suspend fun syncNow(): SyncResult {
         val result = syncWorker.processQueue()
         if (result.synced > 0) {
@@ -118,24 +122,32 @@ class LedgerRepository(
         val currentMonthKey = "${today.year}-${today.monthNumber.toString().padStart(2, '0')}"
         
         val settings = ledger.value.settings
-        if (!force && settings.summaryMonth == currentMonthKey && settings.monthlySummary != null) {
+        println("LedgerRepository: refreshMonthlySummary: currentMonthKey=$currentMonthKey, settings.summaryMonth=${settings.summaryMonth}, hasSummary=${settings.monthlySummary != null}")
+        
+        val isExistingSummaryError = settings.monthlySummary?.startsWith("Error") == true
+        
+        if (!force && settings.summaryMonth == currentMonthKey && settings.monthlySummary != null && !isExistingSummaryError) {
+            println("LedgerRepository: Summary already exists for this month, skipping.")
             return@withLock
         }
 
         val transactions = ledger.value.transactions
-        
-        // Current Month Data
         val currentMonthStart = LocalDate(today.year, today.month, 1).atStartOfDayIn(tz).toEpochMilliseconds()
         val currentMonthTransactions = transactions.filter { it.createdAt >= currentMonthStart }
+        
+        println("LedgerRepository: Requesting summary for ${currentMonthTransactions.size} transactions.")
+        currentMonthTransactions.forEach { 
+            println("LedgerRepository: Transaction: ${it.category}, ${it.amount}, ${it.type}")
+        }
 
         try {
             val summary = api.requestMonthlySummary(currentMonthTransactions)
+            println("LedgerRepository: Received summary: ${summary.take(50)}...")
             database.updateSettings { 
                 it.copy(monthlySummary = summary, summaryMonth = currentMonthKey) 
             }
         } catch (e: Exception) {
             println("LedgerRepository: Failed to refresh monthly summary: ${e.message}")
-            // Don't throw, just log. We don't want to crash the UI for an insight failure.
         }
     }
 
@@ -143,66 +155,67 @@ class LedgerRepository(
         clearAll()
         
         // Set a daily budget for demo
-        setDailyBudget(500.0)
+        setDailyBudget(75.0)
         
-        // Add some cards
-        addCard("Premium Gold", "4532", CardType.Visa, "12/28", 12500.0, "#FFD700")
-        addCard("Daily Saver", "8821", CardType.MasterCard, "05/27", 3400.0, "#4CAF50")
+        // Add some cards with realistic names and balances
+        addCard("Chase Sapphire", "4532", CardType.Visa, "12/28", 4250.75, "#1565C0")
+        addCard("Apple Card", "8821", CardType.MasterCard, "05/27", 1240.20, "#1A1A1A")
+        addCard("Amex Platinum", "1004", CardType.Amex, "08/29", 0.0, "#C62828")
         
         val now = currentTimeMillis()
         val day = 24 * 60 * 60 * 1000L
         
         // Realistic Transactions
-        // Last 7 days
         val items = listOf(
-            Triple(120.50, TransactionType.Expense, "Food"),
+            Triple(12.50, TransactionType.Expense, "Food"),
             Triple(45.00, TransactionType.Expense, "Transport"),
-            Triple(2500.00, TransactionType.Income, "Salary"),
-            Triple(60.00, TransactionType.Expense, "Entertainment"),
-            Triple(15.00, TransactionType.Expense, "Food"),
-            Triple(200.00, TransactionType.Expense, "Shopping"),
-            Triple(80.00, TransactionType.Expense, "Health"),
-            Triple(45.00, TransactionType.Expense, "Transport"),
-            Triple(110.00, TransactionType.Expense, "Food"),
-            Triple(300.00, TransactionType.Income, "Freelance"),
-            Triple(50.00, TransactionType.Expense, "Bills"),
-            Triple(25.00, TransactionType.Expense, "Food"),
-            Triple(75.00, TransactionType.Expense, "Transport"),
-            Triple(500.00, TransactionType.Expense, "Rent"),
-            Triple(40.00, TransactionType.Expense, "Food"),
+            Triple(3200.00, TransactionType.Income, "Salary"),
+            Triple(15.99, TransactionType.Expense, "Entertainment"),
+            Triple(8.40, TransactionType.Expense, "Food"),
             Triple(120.00, TransactionType.Expense, "Shopping"),
-            Triple(30.00, TransactionType.Expense, "Entertainment"),
+            Triple(25.00, TransactionType.Expense, "Health"),
+            Triple(4.50, TransactionType.Expense, "Transport"),
+            Triple(65.20, TransactionType.Expense, "Food"),
+            Triple(450.00, TransactionType.Income, "Freelance"),
+            Triple(85.00, TransactionType.Expense, "Bills"),
+            Triple(14.30, TransactionType.Expense, "Food"),
+            Triple(32.00, TransactionType.Expense, "Transport"),
+            Triple(1200.00, TransactionType.Expense, "Rent"),
+            Triple(9.10, TransactionType.Expense, "Food"),
+            Triple(55.00, TransactionType.Expense, "Shopping"),
+            Triple(12.99, TransactionType.Expense, "Entertainment"),
         )
         
         items.forEachIndexed { index, (amount, type, category) ->
-            val timestamp = now - (index % 10) * day - (index * 1000 * 60 * 30L)
+            val timestamp = now - (index % 10) * day - (index * 1000 * 60 * 45L)
             val note = when(category) {
-                "Food" -> listOf("Lunch at Starbucks", "Grocery shopping", "Dinner with friends").random()
-                "Transport" -> listOf("Uber to office", "Gas station", "Bus fare").random()
-                "Salary" -> "Monthly paycheck"
-                "Freelance" -> "Logo design project"
-                "Shopping" -> listOf("New sneakers", "Amazon order", "Gift for Mom").random()
-                else -> "Regular $category"
+                "Food" -> listOf("Lunch at Panera", "Whole Foods Market", "Coffee with client", "Dinner takeout").random()
+                "Transport" -> listOf("Uber to office", "Shell Gas Station", "Public Transit Pass").random()
+                "Salary" -> "Vellum Tech Monthly Salary"
+                "Freelance" -> "Mobile App UI Design Kit"
+                "Shopping" -> listOf("Amazon Prime - Home Decor", "Nike Store", "Best Buy - Cables").random()
+                "Entertainment" -> listOf("Netflix Subscription", "Movie Night", "Spotify Family").random()
+                "Bills" -> listOf("Verizon Wireless", "Electric Bill", "Cloud Storage Subscription").random()
+                else -> ""
             }
             addTransaction(amount, type, category, note, timestamp)
         }
 
         // Add some older transactions for "last week" comparison
         val olderItems = listOf(
-            Triple(80.00, TransactionType.Expense, "Food"),
-            Triple(40.00, TransactionType.Expense, "Transport"),
-            Triple(150.00, TransactionType.Expense, "Shopping"),
+            Triple(42.50, TransactionType.Expense, "Food"),
+            Triple(15.00, TransactionType.Expense, "Transport"),
+            Triple(89.99, TransactionType.Expense, "Shopping"),
         )
         olderItems.forEachIndexed { index, (amount, type, category) ->
             val timestamp = now - (8 + index) * day
-            addTransaction(amount, type, category, "Last week $category", timestamp)
+            addTransaction(amount, type, category, "Weekly $category replenishment", timestamp)
         }
 
         // Last month transactions
         val lastMonthDay = now - 30 * day
-        addTransaction(3000.0, TransactionType.Income, "Salary", "Last month salary", lastMonthDay)
-        addTransaction(1500.0, TransactionType.Expense, "Rent", "Last month rent", lastMonthDay + 1 * day)
-        addTransaction(200.0, TransactionType.Expense, "Food", "Last month food", lastMonthDay + 2 * day)
+        addTransaction(3200.0, TransactionType.Income, "Salary", "Previous month salary", lastMonthDay)
+        addTransaction(1200.0, TransactionType.Expense, "Rent", "Monthly Apartment Rent", lastMonthDay + 1 * day)
     }
 
     fun getCsvData(): String {

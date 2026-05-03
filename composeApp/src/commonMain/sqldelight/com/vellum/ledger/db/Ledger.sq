@@ -84,6 +84,9 @@ VALUES (?, ?);
 deleteCard:
 DELETE FROM cards WHERE id = ?;
 
+deleteTransaction:
+DELETE FROM transactions WHERE id = ?;
+
 clearTransactions:
 DELETE FROM transactions;
 

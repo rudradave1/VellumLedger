@@ -37,7 +37,6 @@ fun SettingsScreen(
     onPopulateDemoData: () -> Unit = {},
     dailyBudget: Double = 0.0,
     onDailyBudgetChange: (Double) -> Unit = {},
-    onBack: () -> Unit,
     onCurrencyChange: (String) -> Unit
 ) {
     val currency = LocalCurrency.current
@@ -50,11 +49,6 @@ fun SettingsScreen(
         topBar = {
             CenterAlignedTopAppBar(
                 title = { Text("Settings", fontWeight = FontWeight.ExtraBold, fontSize = 22.sp) },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = MaterialTheme.colorScheme.primary)
-                    }
-                },
                 actions = {
                     IconButton(onClick = onSyncNow, enabled = !isSyncing) {
                         Icon(

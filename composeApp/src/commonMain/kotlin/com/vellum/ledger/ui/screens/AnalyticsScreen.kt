@@ -35,13 +35,14 @@ import kotlin.math.abs
 fun AnalyticsScreen(
     ledger: LedgerSnapshot,
     onViewReport: () -> Unit = {},
-    onRefreshSummary: () -> Unit = {}
+    onRefreshSummary: (Boolean) -> Unit = {}
 ) {
     var selectedTab by remember { mutableStateOf(1) } // 0: Weekly, 1: Monthly, 2: Yearly
     val tabs = listOf("Weekly", "Monthly", "Yearly")
 
     LaunchedEffect(Unit) {
-        onRefreshSummary()
+        println("AnalyticsScreen: LaunchedEffect triggering onRefreshSummary")
+        onRefreshSummary(false)
     }
 
     Scaffold(
@@ -115,7 +116,7 @@ fun AnalyticsScreen(
                 item {
                     Text("Monthly AI Summary", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
                     Spacer(Modifier.height(12.dp))
-                    AiSummaryCard(summary, onRefresh = onRefreshSummary)
+                    AiSummaryCard(summary, onRefresh = { onRefreshSummary(true) })
                 }
             }
 
@@ -138,16 +139,16 @@ fun AnalyticsScreen(
                     val prevInc = prevRange.filter { it.type == TransactionType.Income }.sumOf { it.amount }
                     val prevExp = prevRange.filter { it.type == TransactionType.Expense }.sumOf { it.amount }
                     
-                    val incChange = if (prevInc > 0) ((curInc - prevInc) / prevInc * 100).toInt() else 0
-                    val expChange = if (prevExp > 0) ((curExp - prevExp) / prevExp * 100).toInt() else 0
+                    val incChange = if (prevInc > 0) ((curInc - prevInc) / prevInc * 100).toInt() else null
+                    val expChange = if (prevExp > 0) ((curExp - prevExp) / prevExp * 100).toInt() else null
                     
-                    listOf(curInc, curExp, incChange.toDouble(), expChange.toDouble())
+                    listOf(curInc, curExp, incChange?.toDouble() ?: Double.NaN, expChange?.toDouble() ?: Double.NaN)
                 }
 
                 val periodIncome = stats[0]
                 val periodExpense = stats[1]
-                val incomeChange = stats[2].toInt()
-                val expenseChange = stats[3].toInt()
+                val incomeChange = if (stats[2].isNaN()) null else stats[2].toInt()
+                val expenseChange = if (stats[3].isNaN()) null else stats[3].toInt()
 
                 Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
                     Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -156,16 +157,24 @@ fun AnalyticsScreen(
                             amount = periodIncome,
                             color = Color(0xFF10B981),
                             modifier = Modifier.weight(1f),
-                            isIncrease = incomeChange >= 0,
-                            percentageText = "${if (incomeChange >= 0) "+" else ""}$incomeChange% from last period"
+                            isIncrease = (incomeChange ?: 0) >= 0,
+                            percentageText = when {
+                                incomeChange == null -> "No previous data"
+                                incomeChange == 0 -> "No change"
+                                else -> "${if (incomeChange > 0) "+" else ""}$incomeChange% from last period"
+                            }
                         )
                         SummaryCard(
                             label = "Expense",
                             amount = periodExpense,
                             color = Color(0xFFEF4444),
                             modifier = Modifier.weight(1f),
-                            isIncrease = expenseChange < 0,
-                            percentageText = "${if (expenseChange >= 0) "+" else ""}$expenseChange% from last period"
+                            isIncrease = (expenseChange ?: 0) < 0,
+                            percentageText = when {
+                                expenseChange == null -> "No previous data"
+                                expenseChange == 0 -> "No change"
+                                else -> "${if (expenseChange > 0) "+" else ""}$expenseChange% from last period"
+                            }
                         )
                     }
                     BalanceHighlightCard(periodIncome - periodExpense)
@@ -333,11 +342,15 @@ data class BreakdownData(val category: String, val amount: Double, val percentag
 
 @Composable
 fun TrendChart(ledger: LedgerSnapshot, selectedTab: Int) {
+    val currency = LocalCurrency.current
     val now = currentTimeMillis()
     val timeZone = TimeZone.currentSystemDefault()
     val today = kotlinx.datetime.Instant.fromEpochMilliseconds(now).toLocalDateTime(timeZone).date
 
+    var selectedPointIndex by remember { mutableStateOf<Int?>(null) }
+
     val chartData = remember(ledger.transactions, selectedTab) {
+        // ... (existing chart data logic)
         when (selectedTab) {
             0 -> { // Weekly
                 (0 until 7).map { i ->
@@ -381,56 +394,104 @@ fun TrendChart(ledger: LedgerSnapshot, selectedTab: Int) {
     val maxVal = chartData.flatMap { listOf(it.income, it.expense) }.maxOrNull()?.coerceAtLeast(100.0) ?: 100.0
 
     Surface(
-        modifier = Modifier.fillMaxWidth().height(260.dp),
+        modifier = Modifier.fillMaxWidth().height(280.dp),
         shape = RoundedCornerShape(24.dp),
         color = MaterialTheme.colorScheme.surface,
         border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.05f))
     ) {
         Column(modifier = Modifier.padding(20.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth().weight(1f),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.Bottom
-            ) {
-                chartData.forEach { point ->
-                    Column(modifier = Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
-                        Box(modifier = Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.BottomCenter) {
-                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(2.dp), verticalAlignment = Alignment.Bottom) {
-                                val incomeHeight = (point.income / maxVal).toFloat().coerceIn(0.01f, 1f)
-                                val expenseHeight = (point.expense / maxVal).toFloat().coerceIn(0.01f, 1f)
-                                
-                                Box(
+            Box(modifier = Modifier.fillMaxWidth().weight(1f)) {
+                Row(
+                    modifier = Modifier.fillMaxSize(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.Bottom
+                ) {
+                    chartData.forEachIndexed { index, point ->
+                        val isSelected = selectedPointIndex == index
+                        Column(
+                            modifier = Modifier
+                                .weight(1f)
+                                .fillMaxHeight()
+                                .clickable(
+                                    interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                                    indication = null,
+                                    onClick = { selectedPointIndex = if (selectedPointIndex == index) null else index }
+                                ), 
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Box(modifier = Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.BottomCenter) {
+                                Row(
                                     modifier = Modifier
-                                        .weight(1f)
-                                        .fillMaxHeight(incomeHeight)
-                                        .clip(RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp))
-                                        .background(
-                                            Brush.verticalGradient(
-                                                colors = listOf(Color(0xFF10B981), Color(0xFF10B981).copy(alpha = 0.3f))
+                                        .fillMaxWidth()
+                                        .then(if (isSelected) Modifier.background(MaterialTheme.colorScheme.primary.copy(alpha = 0.05f), RoundedCornerShape(4.dp)) else Modifier), 
+                                    horizontalArrangement = Arrangement.spacedBy(2.dp), 
+                                    verticalAlignment = Alignment.Bottom
+                                ) {
+                                    val incomeHeight = (point.income / maxVal).toFloat().coerceIn(0.01f, 1f)
+                                    val expenseHeight = (point.expense / maxVal).toFloat().coerceIn(0.01f, 1f)
+                                    
+                                    Box(
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .fillMaxHeight(incomeHeight)
+                                            .clip(RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp))
+                                            .background(
+                                                Brush.verticalGradient(
+                                                    colors = listOf(Color(0xFF10B981), Color(0xFF10B981).copy(alpha = 0.3f))
+                                                )
                                             )
-                                        )
-                                )
-                                Box(
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .fillMaxHeight(expenseHeight)
-                                        .clip(RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp))
-                                        .background(
-                                            Brush.verticalGradient(
-                                                colors = listOf(Color(0xFFEF4444), Color(0xFFEF4444).copy(alpha = 0.3f))
+                                    )
+                                    Box(
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .fillMaxHeight(expenseHeight)
+                                            .clip(RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp))
+                                            .background(
+                                                Brush.verticalGradient(
+                                                    colors = listOf(Color(0xFFEF4444), Color(0xFFEF4444).copy(alpha = 0.3f))
+                                                )
                                             )
-                                        )
-                                )
+                                    )
+                                }
+                            }
+                            Spacer(Modifier.height(8.dp))
+                            Text(
+                                text = point.label,
+                                fontSize = 9.sp,
+                                fontWeight = if (isSelected) FontWeight.Black else FontWeight.Bold,
+                                color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                                maxLines = 1
+                            )
+                        }
+                    }
+                }
+
+                // Tooltip
+                selectedPointIndex?.let { index ->
+                    val point = chartData[index]
+                    Surface(
+                        modifier = Modifier
+                            .align(Alignment.TopCenter)
+                            .padding(top = 8.dp),
+                        shape = RoundedCornerShape(12.dp),
+                        color = MaterialTheme.colorScheme.surfaceVariant,
+                        tonalElevation = 8.dp,
+                        shadowElevation = 4.dp
+                    ) {
+                        Column(modifier = Modifier.padding(12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text(point.label, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            Spacer(Modifier.height(4.dp))
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Box(Modifier.size(8.dp).background(Color(0xFF10B981), CircleShape))
+                                Spacer(Modifier.width(4.dp))
+                                Text("Inc: ${formatMoney(point.income, currency)}", fontSize = 11.sp)
+                            }
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Box(Modifier.size(8.dp).background(Color(0xFFEF4444), CircleShape))
+                                Spacer(Modifier.width(4.dp))
+                                Text("Exp: ${formatMoney(point.expense, currency)}", fontSize = 11.sp)
                             }
                         }
-                        Spacer(Modifier.height(8.dp))
-                        Text(
-                            text = point.label,
-                            fontSize = 9.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
-                            maxLines = 1
-                        )
                     }
                 }
             }

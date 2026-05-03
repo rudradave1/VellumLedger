@@ -232,6 +232,12 @@ internal class SqlDelightLedgerDatabase(
         }
     }
 
+    override suspend fun deleteTransaction(transactionId: String) {
+        withContext(Dispatchers.Default) {
+            queries.deleteTransaction(transactionId)
+        }
+    }
+
     override suspend fun clearAll() {
         withContext(Dispatchers.Default) {
             queries.transaction {
