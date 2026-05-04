@@ -3,14 +3,17 @@ package com.vellum.ledger.ui.screens
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -37,14 +40,14 @@ fun AddTransactionScreen(
 ) {
     val currency = LocalCurrency.current
     val currencySymbol = extractCurrencySymbol(currency)
-    var amountText by remember { mutableStateOf("") }
-    var type by remember { mutableStateOf(TransactionType.Expense) }
-    var selectedCategory by remember { mutableStateOf("Food") }
-    var note by remember { mutableStateOf("") }
-    var selectedTimestamp by remember { mutableStateOf(currentTimeMillis()) }
+    var amountText by rememberSaveable { mutableStateOf("") }
+    var type by rememberSaveable { mutableStateOf(TransactionType.Expense) }
+    var selectedCategory by rememberSaveable { mutableStateOf("Food") }
+    var note by rememberSaveable { mutableStateOf("") }
+    var selectedTimestamp by rememberSaveable { mutableStateOf(currentTimeMillis()) }
     
-    var showDatePicker by remember { mutableStateOf(false) }
-    var amountError by remember { mutableStateOf<String?>(null) }
+    var showDatePicker by rememberSaveable { mutableStateOf(false) }
+    var amountError by rememberSaveable { mutableStateOf<String?>(null) }
     val isAmountValid = (amountText.toDoubleOrNull() ?: 0.0) > 0.0
 
     val expenseCategories = remember {
@@ -108,100 +111,107 @@ fun AddTransactionScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
-                .padding(24.dp),
+                .padding(horizontal = 24.dp, vertical = 16.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            SegmentedTypeControl(
-                type = type,
-                onTypeChange = { type = it },
-                modifier = Modifier.fillMaxWidth().padding(bottom = 32.dp),
-            )
-
-            AmountCard(
-                amountText = amountText,
-                onAmountChange = { 
-                    if (it.isEmpty() || it.toDoubleOrNull() != null) {
-                        amountText = it
-                        amountError = if (it.isNotEmpty() && (it.toDoubleOrNull() ?: 0.0) <= 0.0) "Must be > 0" else null
-                    }
-                },
-                type = type,
-                currencySymbol = currencySymbol,
-                isError = amountError != null,
-                modifier = Modifier.fillMaxWidth()
-            )
-
-            if (amountError != null) {
-                Text(
-                    amountError!!,
-                    color = MaterialTheme.colorScheme.error,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(top = 8.dp)
-                )
-            }
-
-            Spacer(Modifier.height(32.dp))
-
             Column(
-                modifier = Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(16.dp),
+                modifier = Modifier
+                    .weight(1f)
+                    .verticalScroll(rememberScrollState()),
+                horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Text(
-                    "CATEGORY",
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
-                    letterSpacing = 1.5.sp
+                SegmentedTypeControl(
+                    type = type,
+                    onTypeChange = { type = it },
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 32.dp),
                 )
-                FlowRow(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp),
-                ) {
-                    currentCategories.forEach { category ->
-                        CategoryChip(
-                            name = category.name,
-                            icon = category.icon,
-                            selected = selectedCategory == category.name,
-                            onClick = { selectedCategory = category.name },
-                        )
-                    }
+
+                AmountCard(
+                    amountText = amountText,
+                    onAmountChange = { 
+                        if (it.isEmpty() || it.toDoubleOrNull() != null) {
+                            amountText = it
+                            amountError = if (it.isNotEmpty() && (it.toDoubleOrNull() ?: 0.0) <= 0.0) "Must be > 0" else null
+                        }
+                    },
+                    type = type,
+                    currencySymbol = currencySymbol,
+                    isError = amountError != null,
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                if (amountError != null) {
+                    Text(
+                        amountError!!,
+                        color = MaterialTheme.colorScheme.error,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(top = 8.dp)
+                    )
                 }
 
-                Row(
+                Spacer(Modifier.height(32.dp))
+
+                Column(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+                    verticalArrangement = Arrangement.spacedBy(16.dp),
                 ) {
                     Text(
-                        "TRANSACTION DATE",
+                        "CATEGORY",
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
                         letterSpacing = 1.5.sp
                     )
-                    TextButton(onClick = { showDatePicker = true }) {
-                        val dateText = Instant.fromEpochMilliseconds(selectedTimestamp)
-                            .toLocalDateTime(TimeZone.currentSystemDefault())
-                            .let { "${it.dayOfMonth} ${it.month.name.take(3)}, ${it.year}" }
-                        Text(dateText, fontWeight = FontWeight.ExtraBold)
+                    FlowRow(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp),
+                    ) {
+                        currentCategories.forEach { category ->
+                            CategoryChip(
+                                name = category.name,
+                                icon = category.icon,
+                                selected = selectedCategory == category.name,
+                                onClick = { selectedCategory = category.name },
+                            )
+                        }
                     }
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            "TRANSACTION DATE",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                            letterSpacing = 1.5.sp
+                        )
+                        TextButton(onClick = { showDatePicker = true }) {
+                            val dateText = Instant.fromEpochMilliseconds(selectedTimestamp)
+                                .toLocalDateTime(TimeZone.currentSystemDefault())
+                                .let { "${it.dayOfMonth} ${it.month.name.take(3)}, ${it.year}" }
+                            Text(dateText, fontWeight = FontWeight.ExtraBold)
+                        }
+                    }
+
+                    Spacer(Modifier.height(8.dp))
+
+                    VellumTextField(
+                        value = note,
+                        onValueChange = { note = it },
+                        label = "Note (Optional)",
+                        modifier = Modifier.fillMaxWidth(),
+                        placeholder = "What was this for?",
+                        minLines = 3
+                    )
                 }
-
-                Spacer(Modifier.height(8.dp))
-
-                VellumTextField(
-                    value = note,
-                    onValueChange = { note = it },
-                    label = "Note (Optional)",
-                    modifier = Modifier.fillMaxWidth(),
-                    placeholder = "What was this for?",
-                    minLines = 3
-                )
+                
+                Spacer(Modifier.height(24.dp))
             }
-
-            Spacer(Modifier.weight(1f))
 
             VellumButton(
                 onClick = {

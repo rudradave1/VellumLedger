@@ -18,6 +18,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
@@ -50,8 +51,8 @@ fun HomeScreen(
     onDeleteTransaction: (String) -> Unit = {},
     lastSyncedMessage: String = "",
 ) {
-    var searchQuery by remember { mutableStateOf("") }
-    var selectedCategoryFilter by remember { mutableStateOf("All") }
+    var searchQuery by rememberSaveable { mutableStateOf("") }
+    var selectedCategoryFilter by rememberSaveable { mutableStateOf("All") }
     
     val categories = remember(ledger.transactions) {
         listOf("All") + ledger.transactions.map { it.category }.distinct().sorted()
@@ -442,7 +443,7 @@ fun TransactionSkeleton() {
 @Composable
 fun TotalBalanceCard(balance: Double, income: Double, expense: Double) {
     val currency = LocalCurrency.current
-    var isBalanceVisible by remember { mutableStateOf(true) }
+    var isBalanceVisible by rememberSaveable { mutableStateOf(true) }
     
     var targetBalance by remember { mutableStateOf(0f) }
     LaunchedEffect(balance) {

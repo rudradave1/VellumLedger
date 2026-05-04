@@ -10,6 +10,7 @@ import androidx.compose.material3.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -57,9 +58,9 @@ fun App() {
     val dailyBudget by viewModel.dailyBudget.collectAsState()
     val isSummaryLoading by viewModel.isSummaryLoading.collectAsState()
     
-    var currentScreen by remember { mutableStateOf(Screen.Home) }
-    var exportCsvData by remember { mutableStateOf<String?>(null) }
-    var showReportDialog by remember { mutableStateOf(false) }
+    var currentScreen by rememberSaveable { mutableStateOf(Screen.Home) }
+    var exportCsvData by rememberSaveable { mutableStateOf<String?>(null) }
+    var showReportDialog by rememberSaveable { mutableStateOf(false) }
 
     val snackbarHostState = remember { SnackbarHostState() }
 

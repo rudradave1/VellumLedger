@@ -13,6 +13,7 @@ import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -40,11 +41,11 @@ fun SettingsScreen(
     onCurrencyChange: (String) -> Unit
 ) {
     val currency = LocalCurrency.current
-    var showCurrencyDialog by remember { mutableStateOf(false) }
-    var showAboutDialog by remember { mutableStateOf(false) }
-    var showClearConfirm by remember { mutableStateOf(false) }
-    var showDemoConfirm by remember { mutableStateOf(false) }
-    var showBudgetDialog by remember { mutableStateOf(false) }
+    var showCurrencyDialog by rememberSaveable { mutableStateOf(false) }
+    var showAboutDialog by rememberSaveable { mutableStateOf(false) }
+    var showClearConfirm by rememberSaveable { mutableStateOf(false) }
+    var showDemoConfirm by rememberSaveable { mutableStateOf(false) }
+    var showBudgetDialog by rememberSaveable { mutableStateOf(false) }
     Scaffold(
         topBar = {
             CenterAlignedTopAppBar(
@@ -286,7 +287,7 @@ fun BudgetDialog(
     onDismiss: () -> Unit,
     onConfirm: (Double) -> Unit
 ) {
-    var text by remember { mutableStateOf(if (currentBudget > 0) currentBudget.toString() else "") }
+    var text by rememberSaveable { mutableStateOf(if (currentBudget > 0) currentBudget.toString() else "") }
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Daily Spending Limit") },

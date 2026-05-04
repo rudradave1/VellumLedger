@@ -16,6 +16,7 @@ import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.animation.core.*
@@ -39,7 +40,7 @@ fun AnalyticsScreen(
     onViewReport: () -> Unit = {},
     onRefreshSummary: (Boolean) -> Unit = {}
 ) {
-    var selectedTab by remember { mutableStateOf(1) } // 0: Weekly, 1: Monthly, 2: Yearly
+    var selectedTab by rememberSaveable { mutableStateOf(1) } // 0: Weekly, 1: Monthly, 2: Yearly
     val tabs = listOf("Weekly", "Monthly", "Yearly")
 
     LaunchedEffect(Unit) {
@@ -370,7 +371,7 @@ fun TrendChart(ledger: LedgerSnapshot, selectedTab: Int) {
     val timeZone = TimeZone.currentSystemDefault()
     val today = kotlinx.datetime.Instant.fromEpochMilliseconds(now).toLocalDateTime(timeZone).date
 
-    var selectedPointIndex by remember { mutableStateOf<Int?>(null) }
+    var selectedPointIndex by rememberSaveable { mutableStateOf<Int?>(null) }
 
     val chartData = remember(ledger.transactions, selectedTab) {
         // ... (existing chart data logic)

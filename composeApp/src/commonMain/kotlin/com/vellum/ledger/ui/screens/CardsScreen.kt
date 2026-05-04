@@ -14,6 +14,7 @@ import androidx.compose.material.icons.filled.CreditCard
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -37,7 +38,7 @@ fun CardsScreen(
     onAddCard: (String, String, CardType, String, Double, String) -> Unit,
     onDeleteCard: (String) -> Unit,
 ) {
-    var showAddDialog by remember { mutableStateOf(false) }
+    var showAddDialog by rememberSaveable { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
@@ -275,16 +276,16 @@ fun AddCardDialog(
     onDismiss: () -> Unit,
     onConfirm: (String, String, CardType, String, Double, String) -> Unit,
 ) {
-    var name by remember { mutableStateOf("") }
-    var number by remember { mutableStateOf("") }
-    var expiry by remember { mutableStateOf("") }
-    var balance by remember { mutableStateOf("") }
-    var selectedType by remember { mutableStateOf(CardType.Visa) }
-    var selectedColor by remember { mutableStateOf("#1A1A1A") }
+    var name by rememberSaveable { mutableStateOf("") }
+    var number by rememberSaveable { mutableStateOf("") }
+    var expiry by rememberSaveable { mutableStateOf("") }
+    var balance by rememberSaveable { mutableStateOf("") }
+    var selectedType by rememberSaveable { mutableStateOf(CardType.Visa) }
+    var selectedColor by rememberSaveable { mutableStateOf("#1A1A1A") }
 
-    var numberError by remember { mutableStateOf<String?>(null) }
-    var expiryError by remember { mutableStateOf<String?>(null) }
-    var balanceError by remember { mutableStateOf<String?>(null) }
+    var numberError by rememberSaveable { mutableStateOf<String?>(null) }
+    var expiryError by rememberSaveable { mutableStateOf<String?>(null) }
+    var balanceError by rememberSaveable { mutableStateOf<String?>(null) }
 
     val isFormValid = name.isNotBlank() && 
                       number.length == 4 && 
