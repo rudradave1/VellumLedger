@@ -31,9 +31,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.vellum.ledger.domain.LedgerSnapshot
-import com.vellum.ledger.domain.LedgerTransaction
 import com.vellum.ledger.domain.SyncStatus
 import com.vellum.ledger.domain.TransactionType
+import com.vellum.ledger.ui.model.TransactionUiModel
 import com.vellum.ledger.ui.theme.*
 import kotlinx.datetime.*
 import kotlinx.coroutines.delay
@@ -44,6 +44,7 @@ import kotlin.math.abs
 @Composable
 fun HomeScreen(
     ledger: LedgerSnapshot,
+    transactions: List<TransactionUiModel>,
     isSyncing: Boolean,
     onSyncClick: () -> Unit,
     onAddClick: () -> Unit,
@@ -54,12 +55,12 @@ fun HomeScreen(
     var searchQuery by rememberSaveable { mutableStateOf("") }
     var selectedCategoryFilter by rememberSaveable { mutableStateOf("All") }
     
-    val categories = remember(ledger.transactions) {
-        listOf("All") + ledger.transactions.map { it.category }.distinct().sorted()
+    val categories = remember(transactions) {
+        listOf("All") + transactions.map { it.category }.distinct().sorted()
     }
     
-    val filteredTransactions = remember(ledger.transactions, searchQuery, selectedCategoryFilter) {
-        ledger.transactions.reversed().filter {
+    val filteredTransactions = remember(transactions, searchQuery, selectedCategoryFilter) {
+        transactions.filter {
             val matchesSearch = it.note.contains(searchQuery, ignoreCase = true) || 
                                 it.category.contains(searchQuery, ignoreCase = true) ||
                                 it.amount.toString().contains(searchQuery)
@@ -221,13 +222,13 @@ fun HomeScreen(
                 )
             }
 
-            if (isSyncing && ledger.transactions.isEmpty()) {
+            if (isSyncing && transactions.isEmpty()) {
                 items(5) {
                     TransactionSkeleton()
                 }
             } else if (filteredTransactions.isEmpty()) {
                 item {
-                    if (ledger.transactions.isEmpty()) {
+                    if (transactions.isEmpty()) {
                         EmptyState(onAddClick)
                     } else {
                         Box(modifier = Modifier.fillMaxWidth().padding(vertical = 40.dp), contentAlignment = Alignment.Center) {
@@ -287,7 +288,7 @@ fun SwipeToDeleteContainer(
         enableDismissFromStartToEnd = false,
         backgroundContent = {
             val color = when (dismissState.dismissDirection) {
-                SwipeToDismissBoxValue.EndToStart -> Color(0xFFEF4444)
+                SwipeToDismissBoxValue.EndToStart -> ExpenseColor
                 else -> Color.Transparent
             }
             Box(
@@ -359,7 +360,7 @@ fun DailyBudgetCard(ledger: LedgerSnapshot) {
                         },
                         fontSize = 16.sp,
                         fontWeight = FontWeight.Bold,
-                        color = if (isOverBudget) Color(0xFFEF4444) else MaterialTheme.colorScheme.onSurface
+                        color = if (isOverBudget) ExpenseColor else MaterialTheme.colorScheme.onSurface
                     )
                 }
                 
@@ -367,7 +368,7 @@ fun DailyBudgetCard(ledger: LedgerSnapshot) {
                     modifier = Modifier
                         .size(40.dp)
                         .background(
-                            (if (isOverBudget) Color(0xFFEF4444) else MaterialTheme.colorScheme.primary).copy(alpha = 0.1f),
+                            (if (isOverBudget) ExpenseColor else MaterialTheme.colorScheme.primary).copy(alpha = 0.1f),
                             CircleShape
                         ),
                     contentAlignment = Alignment.Center
@@ -375,7 +376,7 @@ fun DailyBudgetCard(ledger: LedgerSnapshot) {
                     Icon(
                         if (isOverBudget) Icons.Outlined.WarningAmber else Icons.Outlined.Timer,
                         contentDescription = null,
-                        tint = if (isOverBudget) Color(0xFFEF4444) else MaterialTheme.colorScheme.primary,
+                        tint = if (isOverBudget) ExpenseColor else MaterialTheme.colorScheme.primary,
                         modifier = Modifier.size(20.dp)
                     )
                 }
@@ -389,7 +390,7 @@ fun DailyBudgetCard(ledger: LedgerSnapshot) {
                     .fillMaxWidth()
                     .height(8.dp)
                     .clip(CircleShape),
-                color = if (progress > 0.9f) Color(0xFFEF4444) else if (progress > 0.7f) Color(0xFFF59E0B) else MaterialTheme.colorScheme.primary,
+                color = if (progress > 0.9f) ExpenseColor else if (progress > 0.7f) WarningColor else MaterialTheme.colorScheme.primary,
                 trackColor = MaterialTheme.colorScheme.surfaceVariant,
                 strokeCap = androidx.compose.ui.graphics.StrokeCap.Round
             )
@@ -400,7 +401,7 @@ fun DailyBudgetCard(ledger: LedgerSnapshot) {
                 if (isOverBudget) "Over limit" else if (progress > 0.8f) "Almost at limit" else "On track",
                 fontSize = 12.sp,
                 fontWeight = FontWeight.Medium,
-                color = if (isOverBudget) Color(0xFFEF4444) else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                color = if (isOverBudget) ExpenseColor else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
             )
         }
     }
@@ -536,7 +537,7 @@ fun TotalBalanceCard(balance: Double, income: Double, expense: Double) {
                         label = stringResource(Res.string.income),
                         amount = income,
                         icon = Icons.Outlined.ArrowDownward,
-                        color = Color(0xFF4ADE80),
+                        color = IncomeColor,
                         currency = currency,
                         modifier = Modifier.weight(1f)
                     )
@@ -547,7 +548,7 @@ fun TotalBalanceCard(balance: Double, income: Double, expense: Double) {
                         label = stringResource(Res.string.expense),
                         amount = expense,
                         icon = Icons.Outlined.ArrowUpward,
-                        color = Color(0xFFF87171),
+                        color = ExpenseColor,
                         currency = currency,
                         modifier = Modifier.weight(1f)
                     )
@@ -599,10 +600,9 @@ fun BalanceStatItem(
 
 @Composable
 fun TransactionListItem(
-    transaction: LedgerTransaction,
+    transaction: TransactionUiModel,
     onRetry: () -> Unit
 ) {
-    val currency = LocalCurrency.current
     Surface(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(20.dp),
@@ -619,9 +619,8 @@ fun TransactionListItem(
                     .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.1f), CircleShape),
                 contentAlignment = Alignment.Center
             ) {
-                val (icon, _) = categoryIconAndTint(transaction.category)
                 Icon(
-                    imageVector = icon,
+                    imageVector = transaction.categoryIcon,
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.size(24.dp),
@@ -654,10 +653,10 @@ fun TransactionListItem(
 
             Column(horizontalAlignment = Alignment.End) {
                 Text(
-                    text = (if (transaction.type == TransactionType.Income) "+" else "-") + formatMoney(transaction.amount, currency, compact = transaction.amount > 1_000_000),
+                    text = transaction.amountFormatted,
                     fontWeight = FontWeight.ExtraBold,
                     fontSize = 16.sp,
-                    color = if (transaction.type == TransactionType.Income) Color(0xFF10B981) else Color(0xFFEF4444),
+                    color = transaction.color,
                     maxLines = 1,
                     overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                 )
@@ -677,14 +676,14 @@ fun SyncStatusIndicator(
     onRetry: () -> Unit,
 ) {
     when (status) {
-        SyncStatus.Synced -> Icon(Icons.Outlined.CheckCircle, contentDescription = null, tint = Color(0xFF10B981), modifier = Modifier.size(16.dp))
-        SyncStatus.Pending -> Icon(Icons.Outlined.Schedule, contentDescription = null, tint = Color(0xFFF59E0B), modifier = Modifier.size(16.dp))
-        SyncStatus.Syncing -> CircularProgressIndicator(modifier = Modifier.size(14.dp), strokeWidth = 2.dp, color = MaterialTheme.colorScheme.primary)
+        SyncStatus.Synced -> Icon(Icons.Outlined.CheckCircle, contentDescription = null, tint = SyncedColor, modifier = Modifier.size(16.dp))
+        SyncStatus.Pending -> Icon(Icons.Outlined.Schedule, contentDescription = null, tint = PendingColor, modifier = Modifier.size(16.dp))
+        SyncStatus.Syncing -> CircularProgressIndicator(modifier = Modifier.size(14.dp), strokeWidth = 2.dp, color = SyncingColor)
         SyncStatus.Failed -> Row(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.clickable(onClick = onRetry),
         ) {
-            Icon(Icons.Outlined.ErrorOutline, contentDescription = null, tint = Color(0xFFEF4444), modifier = Modifier.size(16.dp))
+            Icon(Icons.Outlined.ErrorOutline, contentDescription = null, tint = FailedColor, modifier = Modifier.size(16.dp))
             Spacer(Modifier.width(4.dp))
             Text("Retry", fontSize = 11.sp, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
         }

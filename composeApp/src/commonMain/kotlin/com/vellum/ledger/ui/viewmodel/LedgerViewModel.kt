@@ -7,10 +7,16 @@ import com.vellum.ledger.domain.LedgerSnapshot
 import com.vellum.ledger.domain.TransactionType
 import com.vellum.ledger.data.currentTimeMillis
 import com.vellum.ledger.repository.LedgerRepository
+import com.vellum.ledger.ui.mapper.UiMapper
+import com.vellum.ledger.ui.model.AnalyticsUiModel
+import com.vellum.ledger.ui.model.CardUiModel
+import com.vellum.ledger.ui.model.SettingsUiModel
+import com.vellum.ledger.ui.model.TransactionUiModel
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -18,52 +24,68 @@ import kotlinx.coroutines.launch
 import com.vellum.ledger.ui.util.GlobalErrorHandler
 import kotlinx.coroutines.flow.SharedFlow
 
-class LedgerViewModel(private val repository: LedgerRepository) : ViewModel() {
+class LedgerViewModel(
+    private val repository: LedgerRepository,
+    private val uiMapper: UiMapper
+) : ViewModel() {
 
     val ledger: StateFlow<LedgerSnapshot> = repository.ledger
     val errorEvents: SharedFlow<String> = GlobalErrorHandler.errorEvents
-
-    // ... (rest of the class)
-
-    val isDarkMode: StateFlow<Boolean?> =
-        ledger
-            .map { it.settings.isDarkMode }
-            .stateIn(viewModelScope, SharingStarted.Eagerly, ledger.value.settings.isDarkMode)
-
-    val autoSync: StateFlow<Boolean> =
-        ledger
-            .map { it.settings.autoSync }
-            .stateIn(viewModelScope, SharingStarted.Eagerly, ledger.value.settings.autoSync)
-
-    val currency: StateFlow<String> =
-        ledger
-            .map { it.settings.currency }
-            .stateIn(viewModelScope, SharingStarted.Eagerly, ledger.value.settings.currency)
-
-    val dailyBudget: StateFlow<Double> =
-        ledger
-            .map { it.settings.dailyBudget }
-            .stateIn(viewModelScope, SharingStarted.Eagerly, ledger.value.settings.dailyBudget)
-
-    val monthlySummary: StateFlow<String?> =
-        ledger
-            .map { it.settings.monthlySummary }
-            .stateIn(viewModelScope, SharingStarted.Eagerly, ledger.value.settings.monthlySummary)
-
-    val lastSyncedMessage: StateFlow<String> =
-        ledger
-            .map { snapshot -> formatLastSync(snapshot.settings.lastSyncAtMillis, nowMillis = currentTimeMillis()) }
-            .stateIn(
-                viewModelScope,
-                SharingStarted.Eagerly,
-                formatLastSync(ledger.value.settings.lastSyncAtMillis, nowMillis = currentTimeMillis()),
-            )
 
     private val _isSyncing = MutableStateFlow(false)
     val isSyncing: StateFlow<Boolean> = _isSyncing.asStateFlow()
 
     private val _isSummaryLoading = MutableStateFlow(false)
     val isSummaryLoading: StateFlow<Boolean> = _isSummaryLoading.asStateFlow()
+
+    val transactions: StateFlow<List<TransactionUiModel>> =
+        ledger
+            .map { snapshot ->
+                snapshot.transactions.map { uiMapper.mapToTransactionUi(it, snapshot.settings.currency) }
+            }
+            .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
+    val cards: StateFlow<List<CardUiModel>> =
+        ledger
+            .map { snapshot ->
+                snapshot.cards.map { uiMapper.mapToCardUi(it, snapshot.settings.currency) }
+            }
+            .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
+    val settings: StateFlow<SettingsUiModel> =
+        combine(ledger, isSummaryLoading) { snapshot, loading ->
+            uiMapper.mapToSettingsUi(snapshot.settings, loading)
+        }.stateIn(viewModelScope, SharingStarted.Eagerly, uiMapper.mapToSettingsUi(ledger.value.settings, false))
+
+    val analytics: StateFlow<AnalyticsUiModel> =
+        ledger
+            .map { snapshot -> uiMapper.mapToAnalyticsUi(snapshot) }
+            .stateIn(viewModelScope, SharingStarted.Eagerly, uiMapper.mapToAnalyticsUi(ledger.value))
+
+    val isDarkMode: StateFlow<Boolean?> =
+        settings
+            .map { it.isDarkMode }
+            .stateIn(viewModelScope, SharingStarted.Eagerly, null)
+
+    val autoSync: StateFlow<Boolean> =
+        settings
+            .map { it.autoSync }
+            .stateIn(viewModelScope, SharingStarted.Eagerly, true)
+
+    val currency: StateFlow<String> =
+        settings
+            .map { it.currency }
+            .stateIn(viewModelScope, SharingStarted.Eagerly, "USD ($)")
+
+    val dailyBudget: StateFlow<Double> =
+        settings
+            .map { it.dailyBudget }
+            .stateIn(viewModelScope, SharingStarted.Eagerly, 0.0)
+
+    val lastSyncedMessage: StateFlow<String> =
+        settings
+            .map { it.lastSyncMessage }
+            .stateIn(viewModelScope, SharingStarted.Eagerly, "")
 
     fun addTransaction(amount: Double, type: TransactionType, category: String, note: String, timestamp: Long) {
         viewModelScope.launch {
@@ -158,16 +180,5 @@ class LedgerViewModel(private val repository: LedgerRepository) : ViewModel() {
                 _isSummaryLoading.value = false
             }
         }
-    }
-}
-
-private fun formatLastSync(lastSyncAtMillis: Long?, nowMillis: Long): String {
-    if (lastSyncAtMillis == null) return "Never"
-    val diff = (nowMillis - lastSyncAtMillis).coerceAtLeast(0L)
-    return when {
-        diff < 60_000L -> "Just now"
-        diff < 3_600_000L -> "${diff / 60_000L}m ago"
-        diff < 86_400_000L -> "${diff / 3_600_000L}h ago"
-        else -> "${diff / 86_400_000L}d ago"
     }
 }

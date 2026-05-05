@@ -22,6 +22,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.vellum.ledger.repository.LedgerRepository
+import com.vellum.ledger.ui.mapper.UiMapper
+import com.vellum.ledger.ui.provider.CommonStringProvider
 import com.vellum.ledger.ui.screens.AddTransactionScreen
 import com.vellum.ledger.ui.screens.AnalyticsScreen
 import com.vellum.ledger.ui.screens.CardsScreen
@@ -44,19 +46,17 @@ enum class Screen {
 @Composable
 fun App() {
     val repository = remember { LedgerRepository() }
-    val viewModel: LedgerViewModel = viewModel { LedgerViewModel(repository) }
+    val stringProvider = remember { CommonStringProvider() }
+    val uiMapper = remember { UiMapper(stringProvider) }
+    val viewModel: LedgerViewModel = viewModel { LedgerViewModel(repository, uiMapper) }
     val haptic = LocalHapticFeedback.current
     
     val ledger by viewModel.ledger.collectAsState()
+    val transactions by viewModel.transactions.collectAsState()
+    val cards by viewModel.cards.collectAsState()
     val isSyncing by viewModel.isSyncing.collectAsState()
-    val isDarkModePref by viewModel.isDarkMode.collectAsState()
-    val isSystemDark = androidx.compose.foundation.isSystemInDarkTheme()
-    val isDarkMode = isDarkModePref ?: isSystemDark
-    val autoSync by viewModel.autoSync.collectAsState()
-    val lastSyncedMessage by viewModel.lastSyncedMessage.collectAsState()
-    val currency by viewModel.currency.collectAsState()
-    val dailyBudget by viewModel.dailyBudget.collectAsState()
-    val isSummaryLoading by viewModel.isSummaryLoading.collectAsState()
+    val settings by viewModel.settings.collectAsState()
+    val analytics by viewModel.analytics.collectAsState()
     
     var currentScreen by rememberSaveable { mutableStateOf(Screen.Home) }
     var exportCsvData by rememberSaveable { mutableStateOf<String?>(null) }
@@ -70,7 +70,10 @@ fun App() {
         }
     }
 
-    LedgerTheme(darkTheme = isDarkMode, currency = currency) {
+    val isSystemDark = androidx.compose.foundation.isSystemInDarkTheme()
+    val isDarkMode = settings.isDarkMode ?: isSystemDark
+
+    LedgerTheme(darkTheme = isDarkMode, currency = settings.currency) {
         Scaffold(
             snackbarHost = { SnackbarHost(snackbarHostState) },
             bottomBar = {
@@ -103,6 +106,7 @@ fun App() {
                     when (screen) {
                         Screen.Home -> HomeScreen(
                             ledger = ledger,
+                            transactions = transactions,
                             isSyncing = isSyncing,
                             onSyncClick = { 
                                 haptic.performHapticFeedback(HapticFeedbackType.LongPress)
@@ -114,11 +118,11 @@ fun App() {
                             },
                             onRetryTransaction = { id -> viewModel.retryTransaction(id) },
                             onDeleteTransaction = { id -> viewModel.deleteTransaction(id) },
-                            lastSyncedMessage = lastSyncedMessage,
+                            lastSyncedMessage = settings.lastSyncMessage,
                         )
                         Screen.Cards -> {
                             CardsScreen(
-                                cards = ledger.cards,
+                                cards = cards,
                                 onAddCard = { name, number, type, expiry, balance, color ->
                                     viewModel.addCard(name, number, type, expiry, balance, color)
                                 },
@@ -126,8 +130,8 @@ fun App() {
                             )
                         }
                         Screen.Analytics -> AnalyticsScreen(
-                            ledger = ledger,
-                            isSummaryLoading = isSummaryLoading,
+                            analytics = analytics,
+                            settings = settings,
                             onViewReport = { showReportDialog = true },
                             onRefreshSummary = { force -> viewModel.refreshSummary(force) }
                         )
@@ -141,11 +145,9 @@ fun App() {
                         )
                         Screen.Settings -> {
                             SettingsScreen(
-                                isDarkMode = isDarkMode,
+                                settings = settings,
                                 onDarkModeChange = { viewModel.toggleDarkMode(it) },
-                                autoSync = autoSync,
                                 onAutoSyncChange = { viewModel.toggleAutoSync(it) },
-                                lastSyncedMessage = lastSyncedMessage,
                                 onSyncNow = { viewModel.syncNow() },
                                 isSyncing = isSyncing,
                                 onExportCSV = { 
@@ -153,7 +155,6 @@ fun App() {
                                 },
                                 onClearData = { viewModel.clearAll() },
                                 onPopulateDemoData = { viewModel.populateDemoData() },
-                                dailyBudget = dailyBudget,
                                 onDailyBudgetChange = { viewModel.setDailyBudget(it) },
                                 onCurrencyChange = { viewModel.setCurrency(it) }
                             )
@@ -207,19 +208,19 @@ fun App() {
             },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                    val income = ledger.analytics.totalIncome
-                    val expense = ledger.analytics.totalExpense
-                    val balance = ledger.analytics.currentBalance
+                    val income = analytics.totalIncome
+                    val expense = analytics.totalExpense
+                    val balance = analytics.currentBalance
                     
                     Surface(
                         color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
                         shape = RoundedCornerShape(16.dp)
                     ) {
                         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                            ReportItem("Total Income", income, Color(0xFF10B981))
-                            ReportItem("Total Expense", expense, Color(0xFFEF4444))
+                            ReportItem("Total Income", income, IncomeColor)
+                            ReportItem("Total Expense", expense, ExpenseColor)
                             HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.1f))
-                            ReportItem("Net Cash Flow", balance, if (balance >= 0) Color(0xFF10B981) else Color(0xFFEF4444))
+                            ReportItem("Net Cash Flow", balance, if (balance >= 0) IncomeColor else ExpenseColor)
                         }
                     }
                     
@@ -236,7 +237,7 @@ fun App() {
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text("Transactions", fontSize = 14.sp, fontWeight = FontWeight.Medium)
-                        Text("${ledger.transactions.size}", fontWeight = FontWeight.Bold)
+                        Text("${analytics.transactions.size}", fontWeight = FontWeight.Bold)
                     }
                 }
             },

@@ -24,17 +24,18 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.vellum.ledger.domain.CardType
-import com.vellum.ledger.domain.LedgerCard
+import com.vellum.ledger.ui.model.CardUiModel
 import com.vellum.ledger.ui.components.VellumTextField
 import com.vellum.ledger.ui.components.VellumButton
 import com.vellum.ledger.ui.components.ExpiryDateTransformation
+import com.vellum.ledger.ui.util.parseHexColor
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.text.input.KeyboardType
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CardsScreen(
-    cards: List<LedgerCard>,
+    cards: List<CardUiModel>,
     onAddCard: (String, String, CardType, String, Double, String) -> Unit,
     onDeleteCard: (String) -> Unit,
 ) {
@@ -137,8 +138,7 @@ fun CardsScreen(
 }
 
 @Composable
-fun CardDetailList(card: LedgerCard, modifier: Modifier = Modifier) {
-    val currency = com.vellum.ledger.ui.theme.LocalCurrency.current
+fun CardDetailList(card: CardUiModel, modifier: Modifier = Modifier) {
     Surface(
         modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(24.dp),
@@ -146,7 +146,7 @@ fun CardDetailList(card: LedgerCard, modifier: Modifier = Modifier) {
         border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.05f))
     ) {
         Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-            DetailItem("Card Balance", com.vellum.ledger.ui.util.formatMoney(card.balance, currency), MaterialTheme.colorScheme.primary)
+            DetailItem("Card Balance", card.balanceFormatted, MaterialTheme.colorScheme.primary)
             HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.05f))
             DetailItem("Card Type", card.cardType.name, MaterialTheme.colorScheme.onSurface)
             HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.05f))
@@ -164,8 +164,8 @@ fun DetailItem(label: String, value: String, valueColor: Color) {
 }
 
 @Composable
-fun CreditCardItem(card: LedgerCard, onDelete: () -> Unit) {
-    val cardColor = parseHexColor(card.hexColor)
+fun CreditCardItem(card: CardUiModel, onDelete: () -> Unit) {
+    val cardColor = card.color
     
     Card(
         modifier = Modifier
@@ -205,7 +205,7 @@ fun CreditCardItem(card: LedgerCard, onDelete: () -> Unit) {
                 Spacer(Modifier.weight(1f))
 
                 Text(
-                    "**** **** **** ${card.cardNumber}",
+                    card.cardNumberMasked,
                     color = Color.White,
                     fontSize = 22.sp,
                     fontWeight = FontWeight.Medium,
@@ -230,20 +230,6 @@ fun CreditCardItem(card: LedgerCard, onDelete: () -> Unit) {
                 }
             }
         }
-    }
-}
-
-fun parseHexColor(hex: String): Color {
-    return try {
-        val colorHex = hex.removePrefix("#")
-        val colorLong = colorHex.toLong(16)
-        if (colorHex.length == 6) {
-            Color(0xFF000000 or colorLong)
-        } else {
-            Color(colorLong)
-        }
-    } catch (e: Exception) {
-        Color.Gray
     }
 }
 

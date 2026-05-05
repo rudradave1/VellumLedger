@@ -1,5 +1,6 @@
 package com.vellum.ledger.ui.screens
 
+import com.vellum.ledger.ui.model.SettingsUiModel
 import com.vellum.ledger.ui.theme.LocalCurrency
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -26,21 +27,17 @@ import androidx.compose.ui.unit.sp
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(
-    isDarkMode: Boolean,
+    settings: SettingsUiModel,
     onDarkModeChange: (Boolean) -> Unit,
-    autoSync: Boolean,
     onAutoSyncChange: (Boolean) -> Unit,
-    lastSyncedMessage: String,
     onSyncNow: () -> Unit,
     isSyncing: Boolean,
     onExportCSV: () -> Unit,
     onClearData: () -> Unit,
     onPopulateDemoData: () -> Unit = {},
-    dailyBudget: Double = 0.0,
     onDailyBudgetChange: (Double) -> Unit = {},
     onCurrencyChange: (String) -> Unit
 ) {
-    val currency = LocalCurrency.current
     var showCurrencyDialog by rememberSaveable { mutableStateOf(false) }
     var showAboutDialog by rememberSaveable { mutableStateOf(false) }
     var showClearConfirm by rememberSaveable { mutableStateOf(false) }
@@ -83,7 +80,7 @@ fun SettingsScreen(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text("Auto Sync", fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
-                            Switch(checked = autoSync, onCheckedChange = onAutoSyncChange)
+                            Switch(checked = settings.autoSync, onCheckedChange = onAutoSyncChange)
                         }
                         
                         Spacer(Modifier.height(16.dp))
@@ -106,7 +103,7 @@ fun SettingsScreen(
                         }
                         
                         Text(
-                            lastSyncedMessage, 
+                            settings.lastSyncMessage, 
                             fontSize = 12.sp, 
                             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
                             modifier = Modifier.padding(top = 8.dp)
@@ -132,14 +129,14 @@ fun SettingsScreen(
                     Column {
                         SettingsItem(
                             title = "Daily Spending Limit", 
-                            value = if (dailyBudget > 0) com.vellum.ledger.ui.util.formatMoney(dailyBudget, currency) else "Not Set", 
+                            value = if (settings.dailyBudget > 0) settings.dailyBudgetFormatted else "Not Set", 
                             showArrow = true,
                             onClick = { showBudgetDialog = true }
                         )
                         HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.outline.copy(alpha = 0.05f))
                         SettingsItem(
                             title = "Default Currency", 
-                            value = currency, 
+                            value = settings.currency, 
                             showArrow = true,
                             onClick = { showCurrencyDialog = true }
                         )
@@ -150,7 +147,7 @@ fun SettingsScreen(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text("Dark Mode", fontWeight = FontWeight.Medium, fontSize = 15.sp)
-                            Switch(checked = isDarkMode, onCheckedChange = onDarkModeChange)
+                            Switch(checked = settings.isDarkMode ?: false, onCheckedChange = onDarkModeChange)
                         }
                     }
                 }
@@ -172,7 +169,7 @@ fun SettingsScreen(
 
     if (showCurrencyDialog) {
         CurrencySelectionDialog(
-            currentCurrency = currency,
+            currentCurrency = settings.currency,
             onDismiss = { showCurrencyDialog = false },
             onConfirm = { 
                 onCurrencyChange(it)
@@ -183,7 +180,7 @@ fun SettingsScreen(
 
     if (showBudgetDialog) {
         BudgetDialog(
-            currentBudget = dailyBudget,
+            currentBudget = settings.dailyBudget,
             onDismiss = { showBudgetDialog = false },
             onConfirm = { 
                 onDailyBudgetChange(it)

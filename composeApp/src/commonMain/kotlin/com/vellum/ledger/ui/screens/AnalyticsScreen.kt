@@ -27,16 +27,18 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.vellum.ledger.domain.LedgerSnapshot
 import com.vellum.ledger.domain.TransactionType
+import com.vellum.ledger.ui.model.AnalyticsUiModel
+import com.vellum.ledger.ui.model.SettingsUiModel
+import com.vellum.ledger.ui.model.TransactionUiModel
 import com.vellum.ledger.ui.theme.*
 import kotlin.math.abs
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AnalyticsScreen(
-    ledger: LedgerSnapshot,
-    isSummaryLoading: Boolean = false,
+    analytics: AnalyticsUiModel,
+    settings: SettingsUiModel,
     onViewReport: () -> Unit = {},
     onRefreshSummary: (Boolean) -> Unit = {}
 ) {
@@ -105,32 +107,29 @@ fun AnalyticsScreen(
             item {
                 Text("Spending Trend", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
                 Spacer(Modifier.height(16.dp))
-                TrendChart(ledger, selectedTab)
+                TrendChart(analytics, selectedTab)
             }
 
             item {
                 Text("Smart Insights", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
                 Spacer(Modifier.height(12.dp))
-                InsightsCard(ledger)
+                InsightsCard(analytics)
             }
 
-            val settings = ledger.settings
             val now = currentTimeMillis()
             val tz = TimeZone.currentSystemDefault()
             val today = Instant.fromEpochMilliseconds(now).toLocalDateTime(tz).date
-            val currentMonthKey = "${today.year}-${today.month.number.toString().padStart(2, '0')}"
             
             val summary = settings.monthlySummary
-            val isCurrentMonth = settings.summaryMonth == currentMonthKey
             val isErrorText = summary?.contains("check back later", ignoreCase = true) == true
             
-            if (isSummaryLoading) {
+            if (settings.isSummaryLoading) {
                 item {
                     Text("Monthly AI Summary", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
                     Spacer(Modifier.height(12.dp))
                     ShimmerSummaryCard()
                 }
-            } else if (isCurrentMonth && !summary.isNullOrBlank() && !isErrorText) {
+            } else if (!summary.isNullOrBlank() && !isErrorText) {
                 item {
                     Text("Monthly AI Summary", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
                     Spacer(Modifier.height(12.dp))
@@ -146,7 +145,7 @@ fun AnalyticsScreen(
 
             item {
                 val now = currentTimeMillis()
-                val stats = remember(selectedTab, ledger.transactions) {
+                val stats = remember(selectedTab, analytics.transactions) {
                     val periodStart = when (selectedTab) {
                         0 -> now - (7 * 24 * 60 * 60 * 1000L) // Weekly
                         1 -> now - (30 * 24 * 60 * 60 * 1000L) // Monthly
@@ -154,8 +153,8 @@ fun AnalyticsScreen(
                     }
                     val prevPeriodStart = periodStart - (now - periodStart)
                     
-                    val currentRange = ledger.transactions.filter { it.createdAt >= periodStart }
-                    val prevRange = ledger.transactions.filter { it.createdAt in prevPeriodStart until periodStart }
+                    val currentRange = analytics.transactions.filter { it.createdAt >= periodStart }
+                    val prevRange = analytics.transactions.filter { it.createdAt in prevPeriodStart until periodStart }
                     
                     val curInc = currentRange.filter { it.type == TransactionType.Income }.sumOf { it.amount }
                     val curExp = currentRange.filter { it.type == TransactionType.Expense }.sumOf { it.amount }
@@ -179,7 +178,7 @@ fun AnalyticsScreen(
                         SummaryCard(
                             label = "Income",
                             amount = periodIncome,
-                            color = Color(0xFF10B981),
+                            color = IncomeColor,
                             modifier = Modifier.weight(1f),
                             isIncrease = (incomeChange ?: 0) >= 0,
                             percentageText = when {
@@ -191,7 +190,7 @@ fun AnalyticsScreen(
                         SummaryCard(
                             label = "Expense",
                             amount = periodExpense,
-                            color = Color(0xFFEF4444),
+                            color = ExpenseColor,
                             modifier = Modifier.weight(1f),
                             isIncrease = (expenseChange ?: 0) < 0,
                             percentageText = when {
@@ -216,17 +215,17 @@ fun AnalyticsScreen(
                         Text("Expense Breakdown", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
                         Spacer(Modifier.height(20.dp))
                         
-                        val filteredTransactions = remember(selectedTab, ledger.transactions) {
+                        val filteredTransactions = remember(selectedTab, analytics.transactions) {
                             val now = currentTimeMillis()
                             val periodStart = when (selectedTab) {
                                 0 -> now - (7 * 24 * 60 * 60 * 1000L)
                                 1 -> now - (30 * 24 * 60 * 60 * 1000L)
                                 else -> now - (365 * 24 * 60 * 60 * 1000L)
                             }
-                            ledger.transactions.filter { it.createdAt >= periodStart }
+                            analytics.transactions.filter { it.createdAt >= periodStart }
                         }
                         
-                        val breakdownColors = listOf(Color(0xFF3525CD), Color(0xFF6366F1), Color(0xFF8B5CF6), Color(0xFFEC4899))
+                        val breakdownColors = ChartPalette
                         val breakdown = getBreakdown(filteredTransactions, breakdownColors)
                         if (breakdown.isEmpty()) {
                             Text("No data for this period", color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(vertical = 16.dp))
@@ -365,7 +364,7 @@ fun BreakdownRow(data: BreakdownData) {
 data class BreakdownData(val category: String, val amount: Double, val percentage: Float, val color: Color)
 
 @Composable
-fun TrendChart(ledger: LedgerSnapshot, selectedTab: Int) {
+fun TrendChart(analytics: AnalyticsUiModel, selectedTab: Int) {
     val currency = LocalCurrency.current
     val now = currentTimeMillis()
     val timeZone = TimeZone.currentSystemDefault()
@@ -373,8 +372,7 @@ fun TrendChart(ledger: LedgerSnapshot, selectedTab: Int) {
 
     var selectedPointIndex by rememberSaveable { mutableStateOf<Int?>(null) }
 
-    val chartData = remember(ledger.transactions, selectedTab) {
-        // ... (existing chart data logic)
+    val chartData = remember(analytics.transactions, selectedTab) {
         when (selectedTab) {
             0 -> { // Weekly
                 (0 until 7).map { i ->
@@ -382,7 +380,7 @@ fun TrendChart(ledger: LedgerSnapshot, selectedTab: Int) {
                     val start = date.atStartOfDayIn(timeZone).toEpochMilliseconds()
                     val end = date.plus(1, DateTimeUnit.DAY).atStartOfDayIn(timeZone).toEpochMilliseconds()
                     val label = date.dayOfWeek.name.lowercase().replaceFirstChar { it.uppercase() }.take(3)
-                    val transactions = ledger.transactions.filter { it.createdAt in start until end }
+                    val transactions = analytics.transactions.filter { it.createdAt in start until end }
                     val income = transactions.filter { it.type == TransactionType.Income }.sumOf { it.amount }
                     val expense = transactions.filter { it.type == TransactionType.Expense }.sumOf { it.amount }
                     ChartPoint(label, income, expense)
@@ -394,7 +392,7 @@ fun TrendChart(ledger: LedgerSnapshot, selectedTab: Int) {
                     val start = date.minus(4, DateTimeUnit.DAY).atStartOfDayIn(timeZone).toEpochMilliseconds()
                     val end = date.plus(1, DateTimeUnit.DAY).atStartOfDayIn(timeZone).toEpochMilliseconds()
                     val label = "${date.dayOfMonth} ${date.month.name.take(3)}"
-                    val transactions = ledger.transactions.filter { it.createdAt in start until end }
+                    val transactions = analytics.transactions.filter { it.createdAt in start until end }
                     val income = transactions.filter { it.type == TransactionType.Income }.sumOf { it.amount }
                     val expense = transactions.filter { it.type == TransactionType.Expense }.sumOf { it.amount }
                     ChartPoint(label, income, expense)
@@ -406,7 +404,7 @@ fun TrendChart(ledger: LedgerSnapshot, selectedTab: Int) {
                     val start = LocalDate(date.year, date.month, 1).atStartOfDayIn(timeZone).toEpochMilliseconds()
                     val end = LocalDate(date.year, date.month, 1).plus(1, DateTimeUnit.MONTH).atStartOfDayIn(timeZone).toEpochMilliseconds()
                     val label = date.month.name.lowercase().replaceFirstChar { it.uppercase() }.take(3)
-                    val transactions = ledger.transactions.filter { it.createdAt in start until end }
+                    val transactions = analytics.transactions.filter { it.createdAt in start until end }
                     val income = transactions.filter { it.type == TransactionType.Income }.sumOf { it.amount }
                     val expense = transactions.filter { it.type == TransactionType.Expense }.sumOf { it.amount }
                     ChartPoint(label, income, expense)
@@ -461,7 +459,7 @@ fun TrendChart(ledger: LedgerSnapshot, selectedTab: Int) {
                                             .clip(RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp))
                                             .background(
                                                 Brush.verticalGradient(
-                                                    colors = listOf(Color(0xFF10B981), Color(0xFF10B981).copy(alpha = 0.3f))
+                                                    colors = listOf(IncomeColor, IncomeColor.copy(alpha = 0.3f))
                                                 )
                                             )
                                     )
@@ -472,7 +470,7 @@ fun TrendChart(ledger: LedgerSnapshot, selectedTab: Int) {
                                             .clip(RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp))
                                             .background(
                                                 Brush.verticalGradient(
-                                                    colors = listOf(Color(0xFFEF4444), Color(0xFFEF4444).copy(alpha = 0.3f))
+                                                    colors = listOf(ExpenseColor, ExpenseColor.copy(alpha = 0.3f))
                                                 )
                                             )
                                     )
@@ -506,12 +504,12 @@ fun TrendChart(ledger: LedgerSnapshot, selectedTab: Int) {
                             Text(point.label, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                             Spacer(Modifier.height(4.dp))
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Box(Modifier.size(8.dp).background(Color(0xFF10B981), CircleShape))
+                                Box(Modifier.size(8.dp).background(IncomeColor, CircleShape))
                                 Spacer(Modifier.width(4.dp))
                                 Text("Inc: ${formatMoney(point.income, currency)}", fontSize = 11.sp)
                             }
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Box(Modifier.size(8.dp).background(Color(0xFFEF4444), CircleShape))
+                                Box(Modifier.size(8.dp).background(ExpenseColor, CircleShape))
                                 Spacer(Modifier.width(4.dp))
                                 Text("Exp: ${formatMoney(point.expense, currency)}", fontSize = 11.sp)
                             }
@@ -523,9 +521,9 @@ fun TrendChart(ledger: LedgerSnapshot, selectedTab: Int) {
             Spacer(Modifier.height(16.dp))
             
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
-                ChartLegendItem("Income", Color(0xFF10B981))
+                ChartLegendItem("Income", IncomeColor)
                 Spacer(Modifier.width(24.dp))
-                ChartLegendItem("Expense", Color(0xFFEF4444))
+                ChartLegendItem("Expense", ExpenseColor)
             }
         }
     }
@@ -534,13 +532,13 @@ fun TrendChart(ledger: LedgerSnapshot, selectedTab: Int) {
 data class ChartPoint(val label: String, val income: Double, val expense: Double)
 
 @Composable
-fun InsightsCard(ledger: LedgerSnapshot) {
+fun InsightsCard(analytics: AnalyticsUiModel) {
     val currency = LocalCurrency.current
     val now = currentTimeMillis()
     val weekInMillis = 7 * 24 * 60 * 60 * 1000L
     
-    val currentWeekTransactions = ledger.transactions.filter { it.createdAt >= now - weekInMillis && it.type == TransactionType.Expense }
-    val lastWeekTransactions = ledger.transactions.filter { it.createdAt in (now - 2 * weekInMillis) until (now - weekInMillis) && it.type == TransactionType.Expense }
+    val currentWeekTransactions = analytics.transactions.filter { it.createdAt >= now - weekInMillis && it.type == TransactionType.Expense }
+    val lastWeekTransactions = analytics.transactions.filter { it.createdAt in (now - 2 * weekInMillis) until (now - weekInMillis) && it.type == TransactionType.Expense }
     
     val currentWeekTotal = currentWeekTransactions.sumOf { it.amount }
     val lastWeekTotal = lastWeekTransactions.sumOf { it.amount }
@@ -556,14 +554,14 @@ fun InsightsCard(ledger: LedgerSnapshot) {
         border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.1f))
     ) {
         Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-            if (lastWeekTotal > 0) {
+            if (lastWeekTotal > 0.0) {
                 val diff = currentWeekTotal - lastWeekTotal
                 val percent = (abs(diff) / lastWeekTotal * 100).toInt()
                 val trend = if (diff >= 0) "more" else "less"
                 InsightItem(
                     icon = if (diff >= 0) Icons.Default.ArrowUpward else Icons.Default.ArrowDownward,
                     text = "You spent $percent% $trend this week vs last week.",
-                    color = if (diff >= 0) Color(0xFFEF4444) else Color(0xFF10B981)
+                    color = if (diff >= 0) ExpenseColor else IncomeColor
                 )
             }
             
@@ -711,7 +709,7 @@ fun ChartLegendItem(label: String, color: Color) {
     }
 }
 
-fun getBreakdown(transactions: List<com.vellum.ledger.domain.LedgerTransaction>, categoryColors: List<Color>): List<BreakdownData> {
+fun getBreakdown(transactions: List<TransactionUiModel>, categoryColors: List<Color>): List<BreakdownData> {
     val expenses = transactions.filter { it.type == TransactionType.Expense }
     val totalExpense = expenses.sumOf { it.amount }
     if (totalExpense == 0.0) return emptyList()
