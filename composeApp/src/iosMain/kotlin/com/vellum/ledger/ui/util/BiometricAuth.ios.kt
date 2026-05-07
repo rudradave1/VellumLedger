@@ -8,6 +8,11 @@ import platform.LocalAuthentication.LAPolicyDeviceOwnerAuthentication
 import platform.Foundation.NSError
 
 actual class BiometricAuthenticator {
+    actual fun isAvailable(): Boolean {
+        val context = LAContext()
+        return context.canEvaluatePolicy(LAPolicyDeviceOwnerAuthentication, null)
+    }
+
     actual fun authenticate(
         title: String,
         subtitle: String,

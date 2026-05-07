@@ -121,6 +121,10 @@ class LedgerViewModel(
         viewModelScope.launch { repository.setDarkMode(enabled) }
     }
 
+    fun toggleBiometricEnabled(enabled: Boolean) {
+        viewModelScope.launch { repository.setBiometricEnabled(enabled) }
+    }
+
     fun toggleAutoSync(enabled: Boolean) {
         viewModelScope.launch { repository.setAutoSync(enabled) }
     }

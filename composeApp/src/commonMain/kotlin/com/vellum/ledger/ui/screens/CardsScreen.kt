@@ -120,8 +120,8 @@ fun CardsScreen(
                     fontWeight = FontWeight.Bold
                 )
                 
-                val selectedCard = cards[pagerState.currentPage]
-                CardDetailList(selectedCard, modifier = Modifier.padding(24.dp))
+                val safeIndex = pagerState.currentPage.coerceIn(0, cards.size - 1)
+                CardDetailList(cards[safeIndex], modifier = Modifier.padding(24.dp))
             }
         }
     }

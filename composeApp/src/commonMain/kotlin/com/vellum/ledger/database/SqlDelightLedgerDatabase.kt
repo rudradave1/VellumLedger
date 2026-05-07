@@ -14,11 +14,13 @@ import com.vellum.ledger.domain.QueueStatus
 import com.vellum.ledger.domain.SyncQueueItem
 import com.vellum.ledger.domain.SyncStatus
 import com.vellum.ledger.domain.TransactionType
+import com.vellum.ledger.ui.util.GlobalErrorHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
@@ -50,6 +52,10 @@ internal class SqlDelightLedgerDatabase(
                     )
                 }
             }
+            .catch { e ->
+                GlobalErrorHandler.handleError(e)
+                emit(emptyList())
+            }
 
     private val queueFlow =
         queries
@@ -66,6 +72,10 @@ internal class SqlDelightLedgerDatabase(
                         status = row.status.toQueueStatus(),
                     )
                 }
+            }
+            .catch { e ->
+                GlobalErrorHandler.handleError(e)
+                emit(emptyList())
             }
 
     private val cardsFlow =
@@ -86,6 +96,10 @@ internal class SqlDelightLedgerDatabase(
                     )
                 }
             }
+            .catch { e ->
+                GlobalErrorHandler.handleError(e)
+                emit(emptyList())
+            }
 
     private val settingsFlow =
         queries
@@ -97,12 +111,17 @@ internal class SqlDelightLedgerDatabase(
                 LedgerSettings(
                     autoSync = map["auto_sync"]?.toBooleanStrictOrNull() ?: true,
                     isDarkMode = map["dark_mode"]?.takeIf { it.isNotBlank() }?.toBooleanStrictOrNull(),
+                    isBiometricEnabled = map["biometric_enabled"]?.toBooleanStrictOrNull() ?: false,
                     lastSyncAtMillis = map["last_sync_at_millis"]?.toLongOrNull(),
                     currency = map["currency"] ?: "USD ($)",
                     dailyBudget = map["daily_budget"]?.toDoubleOrNull() ?: 0.0,
                     monthlySummary = map["monthly_summary"],
                     summaryMonth = map["summary_month"],
                 )
+            }
+            .catch { e ->
+                GlobalErrorHandler.handleError(e)
+                emit(LedgerSettings())
             }
 
     override val state: StateFlow<LedgerSnapshot> =
@@ -203,6 +222,7 @@ internal class SqlDelightLedgerDatabase(
             queries.transaction {
                 queries.upsertSetting("auto_sync", next.autoSync.toString())
                 queries.upsertSetting("dark_mode", next.isDarkMode?.toString() ?: "")
+                queries.upsertSetting("biometric_enabled", next.isBiometricEnabled.toString())
                 queries.upsertSetting("last_sync_at_millis", next.lastSyncAtMillis?.toString() ?: "")
                 queries.upsertSetting("currency", next.currency)
                 queries.upsertSetting("daily_budget", next.dailyBudget.toString())
@@ -266,7 +286,7 @@ internal class SqlDelightLedgerDatabase(
                         category = t.category,
                         note = t.note,
                         created_at = t.created_at,
-                        sync_status = t.sync_status
+                        sync_status = t.sync_status,
                     )
                 }
                 
@@ -280,7 +300,7 @@ internal class SqlDelightLedgerDatabase(
                         card_type = c.card_type,
                         expiry = c.expiry,
                         balance = newBalance,
-                        hex_color = c.hex_color
+                        hex_color = c.hex_color,
                     )
                 }
             }

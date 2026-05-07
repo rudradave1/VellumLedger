@@ -3,6 +3,7 @@ package com.vellum.ledger.ui.util
 import androidx.compose.runtime.Composable
 
 expect class BiometricAuthenticator {
+    fun isAvailable(): Boolean
     fun authenticate(
         title: String,
         subtitle: String,

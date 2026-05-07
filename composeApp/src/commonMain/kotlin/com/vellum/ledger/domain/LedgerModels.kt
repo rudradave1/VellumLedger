@@ -40,6 +40,7 @@ data class LedgerCard(
 data class LedgerSettings(
     val autoSync: Boolean = true,
     val isDarkMode: Boolean? = null,
+    val isBiometricEnabled: Boolean = false,
     val lastSyncAtMillis: Long? = null,
     val currency: String = "USD ($)",
     val dailyBudget: Double = 0.0,

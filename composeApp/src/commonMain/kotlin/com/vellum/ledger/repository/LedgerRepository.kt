@@ -95,6 +95,10 @@ class LedgerRepository(
         database.updateSettings { it.copy(isDarkMode = enabled) }
     }
 
+    suspend fun setBiometricEnabled(enabled: Boolean) {
+        database.updateSettings { it.copy(isBiometricEnabled = enabled) }
+    }
+
     suspend fun setCurrency(currency: String) {
         val oldCurrency = ledger.value.settings.currency
         if (oldCurrency != currency) {

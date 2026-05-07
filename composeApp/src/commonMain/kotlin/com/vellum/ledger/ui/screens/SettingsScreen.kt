@@ -29,6 +29,7 @@ import androidx.compose.ui.unit.sp
 fun SettingsScreen(
     settings: SettingsUiModel,
     onDarkModeChange: (Boolean) -> Unit,
+    onBiometricChange: (Boolean) -> Unit = {},
     onAutoSyncChange: (Boolean) -> Unit,
     onSyncNow: () -> Unit,
     isSyncing: Boolean,
@@ -148,6 +149,15 @@ fun SettingsScreen(
                         ) {
                             Text("Dark Mode", fontWeight = FontWeight.Medium, fontSize = 15.sp)
                             Switch(checked = settings.isDarkMode ?: false, onCheckedChange = onDarkModeChange)
+                        }
+                        HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.outline.copy(alpha = 0.05f))
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(16.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text("Biometric Lock", fontWeight = FontWeight.Medium, fontSize = 15.sp)
+                            Switch(checked = settings.isBiometricEnabled, onCheckedChange = onBiometricChange)
                         }
                     }
                 }

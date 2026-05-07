@@ -2,6 +2,8 @@ package com.vellum.ledger.sync
 
 import com.vellum.ledger.database.LedgerDatabase
 import kotlinx.coroutines.delay
+import kotlin.math.pow
+import kotlin.random.Random
 
 data class SyncResult(
     val attempted: Int,
@@ -18,15 +20,19 @@ class SyncWorker(
         var synced = 0
         var failed = 0
 
+        // Use a snapshot of transactions to avoid potential race conditions during iteration
+        val currentTransactions = database.state.value.transactions
+
         pendingItems.forEach { item ->
-            val transaction = database.state.value.transactions.firstOrNull { it.id == item.entityId }
+            val transaction = currentTransactions.firstOrNull { it.id == item.entityId }
             if (transaction == null) {
+                println("SyncWorker: Transaction ${item.entityId} not found for queue item ${item.id}")
                 failed += 1
                 return@forEach
             }
 
             var retryCount = 0
-            val maxRetries = 2
+            val maxRetries = 3
             var success = false
 
             while (retryCount <= maxRetries && !success) {
@@ -34,8 +40,13 @@ class SyncWorker(
                     database.markSyncing(transaction.id)
                     
                     if (retryCount > 0) {
-                        println("SyncWorker: Retrying ${transaction.id} (Attempt ${retryCount + 1})...")
-                        delay(2000L * retryCount) 
+                        // Exponential backoff: 2s, 4s, 8s with jitter
+                        val baseDelay = (2.0.pow(retryCount) * 1000L).toLong().coerceAtMost(10000L)
+                        val jitter = Random.nextLong(0, 500L)
+                        val totalDelay = baseDelay + jitter
+                        
+                        println("SyncWorker: Retrying ${transaction.id} (Attempt ${retryCount + 1}) after ${totalDelay}ms...")
+                        delay(totalDelay)
                     }
 
                     api.push(transaction)

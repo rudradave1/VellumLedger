@@ -50,6 +50,7 @@ fun App() {
     val uiMapper = remember { UiMapper(stringProvider) }
     val viewModel: LedgerViewModel = viewModel { LedgerViewModel(repository, uiMapper) }
     val haptic = LocalHapticFeedback.current
+    val authenticator = rememberBiometricAuthenticator()
     
     val ledger by viewModel.ledger.collectAsState()
     val transactions by viewModel.transactions.collectAsState()
@@ -61,6 +62,9 @@ fun App() {
     var currentScreen by rememberSaveable { mutableStateOf(Screen.Home) }
     var exportCsvData by rememberSaveable { mutableStateOf<String?>(null) }
     var showReportDialog by rememberSaveable { mutableStateOf(false) }
+    var isUnlocked by rememberSaveable { mutableStateOf(false) }
+
+    val isAuthAvailable = remember(authenticator) { authenticator.isAvailable() }
 
     val snackbarHostState = remember { SnackbarHostState() }
 
@@ -74,90 +78,155 @@ fun App() {
     val isDarkMode = settings.isDarkMode ?: isSystemDark
 
     LedgerTheme(darkTheme = isDarkMode, currency = settings.currency) {
-        Scaffold(
-            snackbarHost = { SnackbarHost(snackbarHostState) },
-            bottomBar = {
-                if (currentScreen != Screen.AddTransaction) {
-                    BottomNavigationBar(
-                        currentScreen = currentScreen,
-                        onScreenSelected = { 
-                            if (it != currentScreen) {
-                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                currentScreen = it 
+        if (settings.isBiometricEnabled && !isUnlocked) {
+            Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+                Column(
+                    modifier = Modifier.fillMaxSize().padding(24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
+                ) {
+                    Icon(
+                        Icons.Outlined.Lock,
+                        contentDescription = null,
+                        modifier = Modifier.size(64.dp),
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                    Spacer(Modifier.height(24.dp))
+                    Text(
+                        "VellumLedger is Locked",
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        "Please authenticate to continue",
+                        fontSize = 14.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(Modifier.height(48.dp))
+                    
+                    if (isAuthAvailable) {
+                        VellumButton(
+                            onClick = {
+                                authenticator.authenticate(
+                                    title = "Unlock VellumLedger",
+                                    subtitle = "Confirm your identity to continue",
+                                    onSuccess = { isUnlocked = true },
+                                    onError = { /* Error handled by authenticator */ }
+                                )
+                            },
+                            text = "Unlock Now",
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    } else {
+                        // If no biometric/lock is set up, but the setting is somehow ON
+                        // (e.g. user disabled lock in system settings after enabling it in app)
+                        VellumButton(
+                            onClick = { 
+                                // Reset the setting so they aren't stuck
+                                viewModel.toggleBiometricEnabled(false)
+                                isUnlocked = true 
+                            },
+                            text = "Disable Lock & Continue",
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        Spacer(Modifier.height(16.dp))
+                        Text(
+                            "No screen lock detected on this device. You can re-enable this in Settings after setting up a PIN or biometric.",
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.error,
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                        )
+                    }
+                }
+            }
+        } else {
+            Scaffold(
+                snackbarHost = { SnackbarHost(snackbarHostState) },
+                bottomBar = {
+                    if (currentScreen != Screen.AddTransaction) {
+                        BottomNavigationBar(
+                            currentScreen = currentScreen,
+                            onScreenSelected = { 
+                                if (it != currentScreen) {
+                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                    currentScreen = it 
+                                }
+                            }
+                        )
+                    }
+                },
+                containerColor = MaterialTheme.colorScheme.background,
+                contentWindowInsets = WindowInsets(0, 0, 0, 0)
+            ) { paddingValues ->
+                Box(modifier = Modifier.fillMaxSize().padding(bottom = paddingValues.calculateBottomPadding())) {
+                    AnimatedContent(
+                        targetState = currentScreen,
+                        transitionSpec = {
+                            if (targetState == Screen.AddTransaction || initialState == Screen.AddTransaction) {
+                                (slideInVertically { it } + fadeIn()).togetherWith(slideOutVertically { it } + fadeOut())
+                            } else {
+                                fadeIn(animationSpec = tween(300)).togetherWith(fadeOut(animationSpec = tween(300)))
                             }
                         }
-                    )
-                }
-            },
-            containerColor = MaterialTheme.colorScheme.background,
-            contentWindowInsets = WindowInsets(0, 0, 0, 0)
-        ) { paddingValues ->
-            Box(modifier = Modifier.fillMaxSize().padding(bottom = paddingValues.calculateBottomPadding())) {
-                AnimatedContent(
-                    targetState = currentScreen,
-                    transitionSpec = {
-                        if (targetState == Screen.AddTransaction || initialState == Screen.AddTransaction) {
-                            (slideInVertically { it } + fadeIn()).togetherWith(slideOutVertically { it } + fadeOut())
-                        } else {
-                            fadeIn(animationSpec = tween(300)).togetherWith(fadeOut(animationSpec = tween(300)))
-                        }
-                    }
-                ) { screen ->
-                    when (screen) {
-                        Screen.Home -> HomeScreen(
-                            ledger = ledger,
-                            transactions = transactions,
-                            isSyncing = isSyncing,
-                            onSyncClick = { 
-                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                viewModel.syncNow() 
-                            },
-                            onAddClick = { 
-                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                currentScreen = Screen.AddTransaction 
-                            },
-                            onRetryTransaction = { id -> viewModel.retryTransaction(id) },
-                            onDeleteTransaction = { id -> viewModel.deleteTransaction(id) },
-                            lastSyncedMessage = settings.lastSyncMessage,
-                        )
-                        Screen.Cards -> {
-                            CardsScreen(
-                                cards = cards,
-                                onAddCard = { name, number, type, expiry, balance, color ->
-                                    viewModel.addCard(name, number, type, expiry, balance, color)
-                                },
-                                onDeleteCard = { id -> viewModel.deleteCard(id) }
-                            )
-                        }
-                        Screen.Analytics -> AnalyticsScreen(
-                            analytics = analytics,
-                            settings = settings,
-                            onViewReport = { showReportDialog = true },
-                            onRefreshSummary = { force -> viewModel.refreshSummary(force) }
-                        )
-                        Screen.AddTransaction -> AddTransactionScreen(
-                            onSave = { amount, type, category, note, timestamp ->
-                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                viewModel.addTransaction(amount, type, category, note, timestamp)
-                                currentScreen = Screen.Home
-                            },
-                            onBack = { currentScreen = Screen.Home }
-                        )
-                        Screen.Settings -> {
-                            SettingsScreen(
-                                settings = settings,
-                                onDarkModeChange = { viewModel.toggleDarkMode(it) },
-                                onAutoSyncChange = { viewModel.toggleAutoSync(it) },
-                                onSyncNow = { viewModel.syncNow() },
+                    ) { screen ->
+                        when (screen) {
+                            Screen.Home -> HomeScreen(
+                                ledger = ledger,
+                                transactions = transactions,
                                 isSyncing = isSyncing,
-                                onExportCSV = { 
-                                    exportCsvData = viewModel.exportCSV()
+                                onSyncClick = { 
+                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                    viewModel.syncNow() 
                                 },
-                                onClearData = { viewModel.clearAll() },
-                                onPopulateDemoData = { viewModel.populateDemoData() },
-                                onDailyBudgetChange = { viewModel.setDailyBudget(it) },
-                                onCurrencyChange = { viewModel.setCurrency(it) }
+                                onAddClick = { 
+                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                    currentScreen = Screen.AddTransaction 
+                                },
+                                onRetryTransaction = { id -> viewModel.retryTransaction(id) },
+                                onDeleteTransaction = { id -> viewModel.deleteTransaction(id) },
+                                lastSyncedMessage = settings.lastSyncMessage,
                             )
+                            Screen.Cards -> {
+                                CardsScreen(
+                                    cards = cards,
+                                    onAddCard = { name, number, type, expiry, balance, color ->
+                                        viewModel.addCard(name, number, type, expiry, balance, color)
+                                    },
+                                    onDeleteCard = { id -> viewModel.deleteCard(id) }
+                                )
+                            }
+                            Screen.Analytics -> AnalyticsScreen(
+                                analytics = analytics,
+                                settings = settings,
+                                onViewReport = { showReportDialog = true },
+                                onRefreshSummary = { force -> viewModel.refreshSummary(force) }
+                            )
+                            Screen.AddTransaction -> AddTransactionScreen(
+                                onSave = { amount, type, category, note, timestamp ->
+                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                    viewModel.addTransaction(amount, type, category, note, timestamp)
+                                    currentScreen = Screen.Home
+                                },
+                                onBack = { currentScreen = Screen.Home }
+                            )
+                            Screen.Settings -> {
+                                SettingsScreen(
+                                    settings = settings,
+                                    onDarkModeChange = { viewModel.toggleDarkMode(it) },
+                                    onBiometricChange = { viewModel.toggleBiometricEnabled(it) },
+                                    onAutoSyncChange = { viewModel.toggleAutoSync(it) },
+                                    onSyncNow = { viewModel.syncNow() },
+                                    isSyncing = isSyncing,
+                                    onExportCSV = { 
+                                        exportCsvData = viewModel.exportCSV()
+                                    },
+                                    onClearData = { viewModel.clearAll() },
+                                    onPopulateDemoData = { viewModel.populateDemoData() },
+                                    onDailyBudgetChange = { viewModel.setDailyBudget(it) },
+                                    onCurrencyChange = { viewModel.setCurrency(it) }
+                                )
+                            }
                         }
                     }
                 }

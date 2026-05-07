@@ -53,6 +53,7 @@ class UiMapper(private val stringProvider: StringProvider) {
         return SettingsUiModel(
             autoSync = settings.autoSync,
             isDarkMode = settings.isDarkMode,
+            isBiometricEnabled = settings.isBiometricEnabled,
             lastSyncMessage = stringProvider.formatLastSync(settings.lastSyncAtMillis),
             currency = settings.currency,
             dailyBudget = settings.dailyBudget,

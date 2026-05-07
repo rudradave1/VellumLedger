@@ -34,6 +34,7 @@ data class CardUiModel(
 data class SettingsUiModel(
     val autoSync: Boolean,
     val isDarkMode: Boolean?,
+    val isBiometricEnabled: Boolean,
     val lastSyncMessage: String,
     val currency: String,
     val dailyBudget: Double,
