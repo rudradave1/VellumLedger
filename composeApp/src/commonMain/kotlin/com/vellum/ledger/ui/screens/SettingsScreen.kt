@@ -36,7 +36,7 @@ fun SettingsScreen(
     onExportCSV: () -> Unit,
     onClearData: () -> Unit,
     onPopulateDemoData: () -> Unit = {},
-    onDailyBudgetChange: (Double) -> Unit = {},
+    onDailyBudgetChange: (Long) -> Unit = {},
     onCurrencyChange: (String) -> Unit
 ) {
     var showCurrencyDialog by rememberSaveable { mutableStateOf(false) }
@@ -290,11 +290,11 @@ fun CurrencySelectionDialog(
 
 @Composable
 fun BudgetDialog(
-    currentBudget: Double,
+    currentBudget: Long,
     onDismiss: () -> Unit,
-    onConfirm: (Double) -> Unit
+    onConfirm: (Long) -> Unit
 ) {
-    var text by rememberSaveable { mutableStateOf(if (currentBudget > 0) currentBudget.toString() else "") }
+    var text by rememberSaveable { mutableStateOf(if (currentBudget > 0) (currentBudget / 100.0).toString() else "") }
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Daily Spending Limit") },
@@ -319,7 +319,10 @@ fun BudgetDialog(
             }
         },
         confirmButton = {
-            TextButton(onClick = { onConfirm(text.toDoubleOrNull() ?: 0.0) }) { Text("Save") }
+            TextButton(onClick = { 
+                val amountCents = (text.toDoubleOrNull()?.let { (it * 100 + 0.5).toLong() } ?: 0L)
+                onConfirm(amountCents) 
+            }) { Text("Save") }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) { Text("Cancel") }

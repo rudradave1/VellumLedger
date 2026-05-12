@@ -77,21 +77,21 @@ class LedgerViewModel(
             .map { it.currency }
             .stateIn(viewModelScope, SharingStarted.Eagerly, "USD ($)")
 
-    val dailyBudget: StateFlow<Double> =
+    val dailyBudget: StateFlow<Long> =
         settings
             .map { it.dailyBudget }
-            .stateIn(viewModelScope, SharingStarted.Eagerly, 0.0)
+            .stateIn(viewModelScope, SharingStarted.Eagerly, 0L)
 
     val lastSyncedMessage: StateFlow<String> =
         settings
             .map { it.lastSyncMessage }
             .stateIn(viewModelScope, SharingStarted.Eagerly, "")
 
-    fun addTransaction(amount: Double, type: TransactionType, category: String, note: String, timestamp: Long) {
+    fun addTransaction(amountCents: Long, type: TransactionType, category: String, note: String, timestamp: Long) {
         viewModelScope.launch {
             try {
-                if (amount <= 0.0) return@launch
-                repository.addTransaction(amount, type, category, note, timestamp)
+                if (amountCents <= 0) return@launch
+                repository.addTransaction(amountCents, type, category, note, timestamp)
                 if (autoSync.value) {
                     syncNow()
                 }
@@ -133,8 +133,8 @@ class LedgerViewModel(
         viewModelScope.launch { repository.setCurrency(currency) }
     }
 
-    fun setDailyBudget(amount: Double) {
-        viewModelScope.launch { repository.setDailyBudget(amount) }
+    fun setDailyBudget(amountCents: Long) {
+        viewModelScope.launch { repository.setDailyBudget(amountCents) }
     }
 
     fun retryTransaction(transactionId: String) {
@@ -144,9 +144,9 @@ class LedgerViewModel(
         }
     }
 
-    fun addCard(name: String, number: String, type: CardType, expiry: String, balance: Double, hexColor: String) {
+    fun addCard(name: String, number: String, type: CardType, expiry: String, balanceCents: Long, hexColor: String) {
         viewModelScope.launch {
-            repository.addCard(name, number, type, expiry, balance, hexColor)
+            repository.addCard(name, number, type, expiry, balanceCents, hexColor)
         }
     }
 

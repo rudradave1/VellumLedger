@@ -114,7 +114,7 @@ internal class SqlDelightLedgerDatabase(
                     isBiometricEnabled = map["biometric_enabled"]?.toBooleanStrictOrNull() ?: false,
                     lastSyncAtMillis = map["last_sync_at_millis"]?.toLongOrNull(),
                     currency = map["currency"] ?: "USD ($)",
-                    dailyBudget = map["daily_budget"]?.toDoubleOrNull() ?: 0.0,
+                    dailyBudget = map["daily_budget"]?.toLongOrNull() ?: 0.toLong(),
                     monthlySummary = map["monthly_summary"],
                     summaryMonth = map["summary_month"],
                 )

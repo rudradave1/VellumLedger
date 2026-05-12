@@ -8,7 +8,7 @@ import com.vellum.ledger.domain.TransactionType
 
 data class TransactionUiModel(
     val id: String,
-    val amount: Double,
+    val amount: Long,
     val amountFormatted: String,
     val type: TransactionType,
     val category: String,
@@ -26,7 +26,7 @@ data class CardUiModel(
     val cardNumberMasked: String,
     val cardType: CardType,
     val expiry: String,
-    val balance: Double,
+    val balance: Long,
     val balanceFormatted: String,
     val color: Color
 )
@@ -37,18 +37,18 @@ data class SettingsUiModel(
     val isBiometricEnabled: Boolean,
     val lastSyncMessage: String,
     val currency: String,
-    val dailyBudget: Double,
+    val dailyBudget: Long,
     val dailyBudgetFormatted: String,
     val monthlySummary: String?,
     val isSummaryLoading: Boolean
 )
 
 data class AnalyticsUiModel(
-    val totalIncome: Double,
+    val totalIncome: Long,
     val totalIncomeFormatted: String,
-    val totalExpense: Double,
+    val totalExpense: Long,
     val totalExpenseFormatted: String,
-    val currentBalance: Double,
+    val currentBalance: Long,
     val currentBalanceFormatted: String,
     val transactions: List<TransactionUiModel>
 )

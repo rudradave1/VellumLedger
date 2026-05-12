@@ -35,7 +35,7 @@ import kotlinx.datetime.*
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun AddTransactionScreen(
-    onSave: (Double, TransactionType, String, String, Long) -> Unit,
+    onSave: (Long, TransactionType, String, String, Long) -> Unit,
     onBack: () -> Unit
 ) {
     val currency = LocalCurrency.current
@@ -48,7 +48,11 @@ fun AddTransactionScreen(
     
     var showDatePicker by rememberSaveable { mutableStateOf(false) }
     var amountError by rememberSaveable { mutableStateOf<String?>(null) }
-    val isAmountValid = (amountText.toDoubleOrNull() ?: 0.0) > 0.0
+    
+    val amountCents = remember(amountText) {
+        (amountText.toDoubleOrNull()?.let { (it * 100 + 0.5).toLong() } ?: 0L)
+    }
+    val isAmountValid = amountCents > 0
 
     val expenseCategories = remember {
         listOf(
@@ -215,9 +219,8 @@ fun AddTransactionScreen(
 
             VellumButton(
                 onClick = {
-                    val amount = amountText.toDoubleOrNull() ?: 0.0
                     if (isAmountValid) {
-                        onSave(amount, type, selectedCategory, note, selectedTimestamp)
+                        onSave(amountCents, type, selectedCategory, note, selectedTimestamp)
                     } else {
                         amountError = "Invalid amount"
                     }

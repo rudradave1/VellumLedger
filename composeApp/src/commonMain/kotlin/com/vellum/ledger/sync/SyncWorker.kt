@@ -17,59 +17,53 @@ class SyncWorker(
 ) {
     suspend fun processQueue(): SyncResult {
         val pendingItems = database.pendingQueueItems()
-        var synced = 0
-        var failed = 0
+        if (pendingItems.isEmpty()) return SyncResult(0, 0, 0)
 
         // Use a snapshot of transactions to avoid potential race conditions during iteration
         val currentTransactions = database.state.value.transactions
 
-        pendingItems.forEach { item ->
-            val transaction = currentTransactions.firstOrNull { it.id == item.entityId }
-            if (transaction == null) {
-                println("SyncWorker: Transaction ${item.entityId} not found for queue item ${item.id}")
-                failed += 1
-                return@forEach
-            }
+        val transactionsToSync = pendingItems.mapNotNull { item ->
+            currentTransactions.firstOrNull { it.id == item.entityId }
+        }
 
-            var retryCount = 0
-            val maxRetries = 3
-            var success = false
+        if (transactionsToSync.isEmpty()) {
+            return SyncResult(pendingItems.size, 0, pendingItems.size)
+        }
 
-            while (retryCount <= maxRetries && !success) {
-                try {
-                    database.markSyncing(transaction.id)
-                    
-                    if (retryCount > 0) {
-                        // Exponential backoff: 2s, 4s, 8s with jitter
-                        val baseDelay = (2.0.pow(retryCount) * 1000L).toLong().coerceAtMost(10000L)
-                        val jitter = Random.nextLong(0, 500L)
-                        val totalDelay = baseDelay + jitter
-                        
-                        println("SyncWorker: Retrying ${transaction.id} (Attempt ${retryCount + 1}) after ${totalDelay}ms...")
-                        delay(totalDelay)
-                    }
+        var retryCount = 0
+        val maxRetries = 3
+        var success = false
 
-                    api.push(transaction)
-                    database.markSynced(transaction.id, item.id)
-                    synced += 1
-                    success = true
-                } catch (e: Throwable) {
-                    retryCount++
-                    println("SyncWorker: Attempt $retryCount failed for ${transaction.id}: ${e.message}")
-                    
-                    if (retryCount > maxRetries) {
-                        println("SyncWorker: Final failure for ${transaction.id}. Marking as failed.")
-                        database.markFailed(transaction.id)
-                        failed += 1
-                    }
+        while (retryCount <= maxRetries && !success) {
+            try {
+                transactionsToSync.forEach { database.markSyncing(it.id) }
+                
+                if (retryCount > 0) {
+                    val baseDelay = (2.0.pow(retryCount) * 1000L).toLong().coerceAtMost(10000L)
+                    val jitter = Random.nextLong(0, 500L)
+                    delay(baseDelay + jitter)
+                }
+
+                api.pushBatch(transactionsToSync)
+                
+                transactionsToSync.forEach { transaction ->
+                    val queueItem = pendingItems.first { it.entityId == transaction.id }
+                    database.markSynced(transaction.id, queueItem.id)
+                }
+                success = true
+            } catch (e: Throwable) {
+                retryCount++
+                if (retryCount > maxRetries) {
+                    transactionsToSync.forEach { database.markFailed(it.id) }
                 }
             }
         }
 
         return SyncResult(
-            attempted = pendingItems.size,
-            synced = synced,
-            failed = failed,
+            attempted = transactionsToSync.size,
+            synced = if (success) transactionsToSync.size else 0,
+            failed = if (success) 0 else transactionsToSync.size,
         )
     }
 }
+

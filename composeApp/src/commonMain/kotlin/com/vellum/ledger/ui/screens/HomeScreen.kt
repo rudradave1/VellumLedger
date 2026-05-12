@@ -329,7 +329,7 @@ fun DailyBudgetCard(ledger: LedgerSnapshot) {
     }
 
     val remaining = budget - todaySpending
-    val progress = (todaySpending / budget).toFloat().coerceIn(0f, 1f)
+    val progress = if (budget > 0) (todaySpending.toFloat() / budget) else 0f
     val isOverBudget = todaySpending > budget
     
     Surface(
@@ -356,7 +356,7 @@ fun DailyBudgetCard(ledger: LedgerSnapshot) {
                         if (remaining >= 0) {
                             "${formatMoney(remaining, currency)} left for today"
                         } else {
-                            "${formatMoney(0.0, currency)} left · Over by ${formatMoney(abs(remaining), currency)}"
+                            "${formatMoney(0L, currency)} left · Over by ${formatMoney(abs(remaining), currency)}"
                         },
                         fontSize = 16.sp,
                         fontWeight = FontWeight.Bold,
@@ -442,7 +442,7 @@ fun TransactionSkeleton() {
 }
 
 @Composable
-fun TotalBalanceCard(balance: Double, income: Double, expense: Double) {
+fun TotalBalanceCard(balance: Long, income: Long, expense: Long) {
     val currency = LocalCurrency.current
     var isBalanceVisible by rememberSaveable { mutableStateOf(true) }
     
@@ -504,15 +504,15 @@ fun TotalBalanceCard(balance: Double, income: Double, expense: Double) {
                 
                 Text(
                     text = if (isBalanceVisible) {
-                        formatMoney(animatedBalance.toDouble(), currency, compact = balance > 1_000_000_000_000)
+                        formatMoney(animatedBalance.toLong(), currency, compact = balance > 100_000_000_000_00L)
                     } else {
                         "••••••••"
                     },
                     fontSize = when {
                         !isBalanceVisible -> 48.sp
-                        balance > 1_000_000_000_000 -> 32.sp
-                        balance > 1_000_000_000 -> 28.sp
-                        balance > 1_000_000 -> 32.sp
+                        balance > 100_000_000_000_00L -> 32.sp
+                        balance > 100_000_000_00L -> 28.sp
+                        balance > 100_000_00L -> 32.sp
                         else -> 48.sp
                     },
                     fontWeight = FontWeight.Black,
@@ -561,7 +561,7 @@ fun TotalBalanceCard(balance: Double, income: Double, expense: Double) {
 @Composable
 fun BalanceStatItem(
     label: String, 
-    amount: Double, 
+    amount: Long, 
     icon: ImageVector, 
     color: Color, 
     currency: String,
@@ -587,7 +587,7 @@ fun BalanceStatItem(
                 maxLines = 1
             )
             Text(
-                formatMoney(amount, currency, compact = amount > 1_000_000), 
+                formatMoney(amount, currency, compact = amount > 100_000_00L),
                 color = Color.White, 
                 fontSize = 14.sp,
                 fontWeight = FontWeight.Bold,

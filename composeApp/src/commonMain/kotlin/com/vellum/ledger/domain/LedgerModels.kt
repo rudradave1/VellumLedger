@@ -33,7 +33,7 @@ data class LedgerCard(
     val cardNumber: String, // Last 4 digits or masked
     val cardType: CardType,
     val expiry: String,
-    val balance: Double = 0.0,
+    val balance: Long = 0,
     val hexColor: String,
 )
 
@@ -43,7 +43,7 @@ data class LedgerSettings(
     val isBiometricEnabled: Boolean = false,
     val lastSyncAtMillis: Long? = null,
     val currency: String = "USD ($)",
-    val dailyBudget: Double = 0.0,
+    val dailyBudget: Long = 0,
     val monthlySummary: String? = null,
     val summaryMonth: String? = null, // Format: YYYY-MM
 )
@@ -51,7 +51,7 @@ data class LedgerSettings(
 @Serializable
 data class LedgerTransaction(
     val id: String,
-    val amount: Double,
+    val amount: Long,
     val type: TransactionType,
     val category: String,
     val note: String,
@@ -68,9 +68,9 @@ data class SyncQueueItem(
 )
 
 data class LedgerAnalytics(
-    val totalIncome: Double,
-    val totalExpense: Double,
-    val currentBalance: Double,
+    val totalIncome: Long,
+    val totalExpense: Long,
+    val currentBalance: Long,
 )
 
 data class LedgerSnapshot(

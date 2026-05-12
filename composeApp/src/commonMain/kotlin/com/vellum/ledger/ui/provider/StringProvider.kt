@@ -3,7 +3,7 @@ package com.vellum.ledger.ui.provider
 interface StringProvider {
     fun get(id: String): String
     fun formatLastSync(lastSyncAtMillis: Long?): String
-    fun formatMoney(amount: Double, currency: String): String
+    fun formatMoney(amountCents: Long, currency: String): String
 }
 
 class CommonStringProvider : StringProvider {
@@ -24,7 +24,7 @@ class CommonStringProvider : StringProvider {
         }
     }
 
-    override fun formatMoney(amount: Double, currency: String): String {
-        return com.vellum.ledger.ui.util.formatMoney(amount, currency)
+    override fun formatMoney(amountCents: Long, currency: String): String {
+        return com.vellum.ledger.ui.util.formatMoney(amountCents, currency)
     }
 }

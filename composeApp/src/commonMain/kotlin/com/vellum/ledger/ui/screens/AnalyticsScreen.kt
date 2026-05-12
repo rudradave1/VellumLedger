@@ -162,16 +162,17 @@ fun AnalyticsScreen(
                     val prevInc = prevRange.filter { it.type == TransactionType.Income }.sumOf { it.amount }
                     val prevExp = prevRange.filter { it.type == TransactionType.Expense }.sumOf { it.amount }
                     
-                    val incChange = if (prevInc > 0) ((curInc - prevInc) / prevInc * 100).toInt() else null
-                    val expChange = if (prevExp > 0) ((curExp - prevExp) / prevExp * 100).toInt() else null
+                    val incChange = if (prevInc > 0) ((curInc - prevInc).toDouble() / prevInc * 100).toInt() else null
+                    val expChange = if (prevExp > 0) ((curExp - prevExp).toDouble() / prevExp * 100).toInt() else null
                     
-                    listOf(curInc, curExp, incChange?.toDouble() ?: Double.NaN, expChange?.toDouble() ?: Double.NaN)
+                    Triple(curInc, curExp, Pair(incChange, expChange))
                 }
 
-                val periodIncome = stats[0]
-                val periodExpense = stats[1]
-                val incomeChange = if (stats[2].isNaN()) null else stats[2].toInt()
-                val expenseChange = if (stats[3].isNaN()) null else stats[3].toInt()
+                val periodIncome = stats.first
+                val periodExpense = stats.second
+                val incomeChange = stats.third.first
+                val expenseChange = stats.third.second
+
 
                 Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
                     Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -254,7 +255,7 @@ fun AnalyticsScreen(
 }
 
 @Composable
-fun SummaryCard(label: String, amount: Double, color: Color, modifier: Modifier, isIncrease: Boolean, percentageText: String = "") {
+fun SummaryCard(label: String, amount: Long, color: Color, modifier: Modifier, isIncrease: Boolean, percentageText: String = "") {
     val currency = LocalCurrency.current
     Surface(
         modifier = modifier,
@@ -278,7 +279,7 @@ fun SummaryCard(label: String, amount: Double, color: Color, modifier: Modifier,
             Spacer(Modifier.height(12.dp))
             Text(
                 text = formatMoney(amount, currency),
-                fontSize = if (amount > 1_000_000) 18.sp else 22.sp,
+                fontSize = if (amount > 100_000_000L) 18.sp else 22.sp,
                 fontWeight = FontWeight.Black,
                 color = MaterialTheme.colorScheme.onSurface,
                 maxLines = 1,
@@ -298,7 +299,7 @@ fun SummaryCard(label: String, amount: Double, color: Color, modifier: Modifier,
 }
 
 @Composable
-fun BalanceHighlightCard(balance: Double) {
+fun BalanceHighlightCard(balance: Long) {
     val currency = LocalCurrency.current
     Surface(
         modifier = Modifier.fillMaxWidth().height(110.dp),
@@ -319,7 +320,7 @@ fun BalanceHighlightCard(balance: Double) {
                 }
                 Text(
                     text = formatMoney(balance, currency),
-                    fontSize = if (balance > 1_000_000) 24.sp else 32.sp,
+                    fontSize = if (balance > 100_000_000L) 24.sp else 32.sp,
                     fontWeight = FontWeight.Black,
                     color = Color.White,
                     maxLines = 1,
@@ -361,7 +362,7 @@ fun BreakdownRow(data: BreakdownData) {
     }
 }
 
-data class BreakdownData(val category: String, val amount: Double, val percentage: Float, val color: Color)
+data class BreakdownData(val category: String, val amount: Long, val percentage: Float, val color: Color)
 
 @Composable
 fun TrendChart(analytics: AnalyticsUiModel, selectedTab: Int) {
@@ -413,7 +414,7 @@ fun TrendChart(analytics: AnalyticsUiModel, selectedTab: Int) {
         }
     }
 
-    val maxVal = chartData.flatMap { listOf(it.income, it.expense) }.maxOrNull()?.coerceAtLeast(100.0) ?: 100.0
+    val maxVal = chartData.flatMap { listOf(it.income, it.expense) }.maxOrNull()?.coerceAtLeast(10000L) ?: 10000L
 
     Surface(
         modifier = Modifier.fillMaxWidth().height(280.dp),
@@ -449,8 +450,9 @@ fun TrendChart(analytics: AnalyticsUiModel, selectedTab: Int) {
                                     horizontalArrangement = Arrangement.spacedBy(2.dp), 
                                     verticalAlignment = Alignment.Bottom
                                 ) {
-                                    val incomeHeight = (point.income / maxVal).toFloat().coerceIn(0.01f, 1f)
-                                    val expenseHeight = (point.expense / maxVal).toFloat().coerceIn(0.01f, 1f)
+                                    val incomeHeight = (point.income.toDouble() / maxVal).toFloat().coerceIn(0.01f, 1f)
+                                    val expenseHeight = (point.expense.toDouble() / maxVal).toFloat().coerceIn(0.01f, 1f)
+
                                     
                                     Box(
                                         modifier = Modifier
@@ -529,7 +531,7 @@ fun TrendChart(analytics: AnalyticsUiModel, selectedTab: Int) {
     }
 }
 
-data class ChartPoint(val label: String, val income: Double, val expense: Double)
+data class ChartPoint(val label: String, val income: Long, val expense: Long)
 
 @Composable
 fun InsightsCard(analytics: AnalyticsUiModel) {
@@ -554,9 +556,9 @@ fun InsightsCard(analytics: AnalyticsUiModel) {
         border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.1f))
     ) {
         Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-            if (lastWeekTotal > 0.0) {
+            if (lastWeekTotal > 0) {
                 val diff = currentWeekTotal - lastWeekTotal
-                val percent = (abs(diff) / lastWeekTotal * 100).toInt()
+                val percent = (abs(diff).toDouble() / lastWeekTotal * 100).toInt()
                 val trend = if (diff >= 0) "more" else "less"
                 InsightItem(
                     icon = if (diff >= 0) Icons.Default.ArrowUpward else Icons.Default.ArrowDownward,
@@ -573,7 +575,7 @@ fun InsightsCard(analytics: AnalyticsUiModel) {
                 )
             }
             
-            if (currentWeekTransactions.isEmpty() && lastWeekTotal == 0.0) {
+            if (currentWeekTransactions.isEmpty() && lastWeekTotal == 0L) {
                 Text("Not enough data for insights yet. Keep tracking!", fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
@@ -712,7 +714,7 @@ fun ChartLegendItem(label: String, color: Color) {
 fun getBreakdown(transactions: List<TransactionUiModel>, categoryColors: List<Color>): List<BreakdownData> {
     val expenses = transactions.filter { it.type == TransactionType.Expense }
     val totalExpense = expenses.sumOf { it.amount }
-    if (totalExpense == 0.0) return emptyList()
+    if (totalExpense == 0L) return emptyList()
 
     return expenses.groupBy { it.category }
         .mapValues { it.value.sumOf { t -> t.amount } }
@@ -722,7 +724,7 @@ fun getBreakdown(transactions: List<TransactionUiModel>, categoryColors: List<Co
             BreakdownData(
                 category = category,
                 amount = amount,
-                percentage = (amount / totalExpense).toFloat(),
+                percentage = (amount.toDouble() / totalExpense).toFloat(),
                 color = categoryColors[index % categoryColors.size]
             )
         }

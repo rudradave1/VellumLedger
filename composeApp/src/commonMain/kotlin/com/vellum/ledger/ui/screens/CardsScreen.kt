@@ -36,7 +36,7 @@ import androidx.compose.ui.text.input.KeyboardType
 @Composable
 fun CardsScreen(
     cards: List<CardUiModel>,
-    onAddCard: (String, String, CardType, String, Double, String) -> Unit,
+    onAddCard: (String, String, CardType, String, Long, String) -> Unit,
     onDeleteCard: (String) -> Unit,
 ) {
     var showAddDialog by rememberSaveable { mutableStateOf(false) }
@@ -260,7 +260,7 @@ fun EmptyCardsState(onAddClick: () -> Unit) {
 @Composable
 fun AddCardDialog(
     onDismiss: () -> Unit,
-    onConfirm: (String, String, CardType, String, Double, String) -> Unit,
+    onConfirm: (String, String, CardType, String, Long, String) -> Unit,
 ) {
     var name by rememberSaveable { mutableStateOf("") }
     var number by rememberSaveable { mutableStateOf("") }
@@ -368,7 +368,8 @@ fun AddCardDialog(
                 onClick = {
                     if (isFormValid) {
                         val formattedExpiry = expiry.take(2) + "/" + expiry.drop(2)
-                        onConfirm(name, number, selectedType, formattedExpiry, balance.toDoubleOrNull() ?: 0.0, selectedColor)
+                        val balanceCents = (balance.toDoubleOrNull()?.let { (it * 100 + 0.5).toLong() } ?: 0L)
+                        onConfirm(name, number, selectedType, formattedExpiry, balanceCents, selectedColor)
                     }
                 },
                 text = "Add Card",

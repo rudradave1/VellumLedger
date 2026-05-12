@@ -10,7 +10,7 @@ import kotlinx.serialization.Serializable
 data class NetworkTransaction(
     val id: String,
     val userId: String,
-    val amount: Double,
+    val amount: Long,
     val category: String,
     val note: String?,
     val type: String,
@@ -27,7 +27,7 @@ data class PushRequest(
 @Serializable
 data class TransactionSummaryDto(
     val id: String,
-    val amount: Double,
+    val amount: Long,
     val type: String,
     val category: String,
     val note: String,
@@ -43,6 +43,18 @@ data class SummaryRequest(
 data class PushResponse(
     val success: Boolean = true,
     val message: String? = null
+)
+
+@Serializable
+data class AuthRequest(
+    val email: String,
+    val password: String
+)
+
+@Serializable
+data class AuthResponse(
+    val token: String,
+    val userId: String
 )
 
 fun LedgerTransaction.toNetwork(userId: String): NetworkTransaction {

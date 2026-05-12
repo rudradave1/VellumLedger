@@ -15,24 +15,24 @@ import kotlinx.datetime.*
 
 class LedgerRepository(
     private val database: LedgerDatabase = createLedgerDatabase(),
-    private val syncWorker: SyncWorker = SyncWorker(database, com.vellum.ledger.sync.KtorLedgerApi()),
     private val api: com.vellum.ledger.sync.LedgerApi = com.vellum.ledger.sync.KtorLedgerApi(),
+    private val syncWorker: SyncWorker = SyncWorker(database, api),
 ) {
     val ledger: StateFlow<LedgerSnapshot> = database.state
     private val summaryMutex = Mutex()
 
     suspend fun addTransaction(
-        amount: Double,
+        amountCents: Long,
         type: TransactionType,
         category: String,
         note: String,
         timestamp: Long = currentTimeMillis(),
     ) {
-        require(amount > 0.0) { "Amount must be > 0" }
+        require(amountCents > 0) { "Amount must be > 0" }
         val transactionId = newLedgerId()
         val transaction = LedgerTransaction(
             id = transactionId,
-            amount = amount,
+            amount = amountCents,
             type = type,
             category = category,
             note = note.trim(),
@@ -55,7 +55,7 @@ class LedgerRepository(
         number: String,
         type: CardType,
         expiry: String,
-        balance: Double,
+        balanceCents: Long,
         hexColor: String,
     ) {
         val card = LedgerCard(
@@ -64,7 +64,7 @@ class LedgerRepository(
             cardNumber = number,
             cardType = type,
             expiry = expiry,
-            balance = balance,
+            balance = balanceCents,
             hexColor = hexColor,
         )
         database.insertCard(card)
@@ -79,6 +79,9 @@ class LedgerRepository(
     }
 
     suspend fun syncNow(): SyncResult {
+        // Refresh live currency rates
+        com.vellum.ledger.ui.util.ExchangeRateUtil.refreshRates()
+
         val result = syncWorker.processQueue()
         if (result.synced > 0) {
             val now = currentTimeMillis()
@@ -102,13 +105,15 @@ class LedgerRepository(
     suspend fun setCurrency(currency: String) {
         val oldCurrency = ledger.value.settings.currency
         if (oldCurrency != currency) {
+            // Fetch live rates before performing the conversion
+            com.vellum.ledger.ui.util.ExchangeRateUtil.refreshRates()
             database.convertCurrency(oldCurrency, currency)
             database.updateSettings { it.copy(currency = currency) }
         }
     }
 
-    suspend fun setDailyBudget(amount: Double) {
-        database.updateSettings { it.copy(dailyBudget = amount) }
+    suspend fun setDailyBudget(amountCents: Long) {
+        database.updateSettings { it.copy(dailyBudget = amountCents) }
     }
 
     suspend fun retryTransaction(transactionId: String) {
@@ -165,38 +170,38 @@ class LedgerRepository(
         clearAll()
         
         // Set a daily budget for demo
-        setDailyBudget(75.0)
+        setDailyBudget(7500L)
         
         // Add some cards with realistic names and balances
-        addCard("Chase Sapphire", "4532", CardType.Visa, "12/28", 4250.75, "#1565C0")
-        addCard("Apple Card", "8821", CardType.MasterCard, "05/27", 1240.20, "#1A1A1A")
-        addCard("Amex Platinum", "1004", CardType.Amex, "08/29", 0.0, "#C62828")
+        addCard("Chase Sapphire", "4532", CardType.Visa, "12/28", 425075L, "#1565C0")
+        addCard("Apple Card", "8821", CardType.MasterCard, "05/27", 124020L, "#1A1A1A")
+        addCard("Amex Platinum", "1004", CardType.Amex, "08/29", 0L, "#C62828")
         
         val now = currentTimeMillis()
         val day = 24 * 60 * 60 * 1000L
         
         // Realistic Transactions
         val items = listOf(
-            Triple(12.50, TransactionType.Expense, "Food"),
-            Triple(45.00, TransactionType.Expense, "Transport"),
-            Triple(3200.00, TransactionType.Income, "Salary"),
-            Triple(15.99, TransactionType.Expense, "Entertainment"),
-            Triple(8.40, TransactionType.Expense, "Food"),
-            Triple(120.00, TransactionType.Expense, "Shopping"),
-            Triple(25.00, TransactionType.Expense, "Health"),
-            Triple(4.50, TransactionType.Expense, "Transport"),
-            Triple(65.20, TransactionType.Expense, "Food"),
-            Triple(450.00, TransactionType.Income, "Freelance"),
-            Triple(85.00, TransactionType.Expense, "Bills"),
-            Triple(14.30, TransactionType.Expense, "Food"),
-            Triple(32.00, TransactionType.Expense, "Transport"),
-            Triple(1200.00, TransactionType.Expense, "Rent"),
-            Triple(9.10, TransactionType.Expense, "Food"),
-            Triple(55.00, TransactionType.Expense, "Shopping"),
-            Triple(12.99, TransactionType.Expense, "Entertainment"),
+            Triple(1250L, TransactionType.Expense, "Food"),
+            Triple(4500L, TransactionType.Expense, "Transport"),
+            Triple(320000L, TransactionType.Income, "Salary"),
+            Triple(1599L, TransactionType.Expense, "Entertainment"),
+            Triple(840L, TransactionType.Expense, "Food"),
+            Triple(12000L, TransactionType.Expense, "Shopping"),
+            Triple(2500L, TransactionType.Expense, "Health"),
+            Triple(450L, TransactionType.Expense, "Transport"),
+            Triple(6520L, TransactionType.Expense, "Food"),
+            Triple(45000L, TransactionType.Income, "Freelance"),
+            Triple(8500L, TransactionType.Expense, "Bills"),
+            Triple(1430L, TransactionType.Expense, "Food"),
+            Triple(3200L, TransactionType.Expense, "Transport"),
+            Triple(120000L, TransactionType.Expense, "Rent"),
+            Triple(910L, TransactionType.Expense, "Food"),
+            Triple(5500L, TransactionType.Expense, "Shopping"),
+            Triple(1299L, TransactionType.Expense, "Entertainment"),
         )
         
-        items.forEachIndexed { index, (amount, type, category) ->
+        items.forEachIndexed { index, (amountCents, type, category) ->
             val timestamp = now - (index % 10) * day - (index * 1000 * 60 * 45L)
             val note = when(category) {
                 "Food" -> listOf("Lunch at Panera", "Whole Foods Market", "Coffee with client", "Dinner takeout").random()
@@ -208,24 +213,24 @@ class LedgerRepository(
                 "Bills" -> listOf("Verizon Wireless", "Electric Bill", "Cloud Storage Subscription").random()
                 else -> ""
             }
-            addTransaction(amount, type, category, note, timestamp)
+            addTransaction(amountCents, type, category, note, timestamp)
         }
 
         // Add some older transactions for "last week" comparison
         val olderItems = listOf(
-            Triple(42.50, TransactionType.Expense, "Food"),
-            Triple(15.00, TransactionType.Expense, "Transport"),
-            Triple(89.99, TransactionType.Expense, "Shopping"),
+            Triple(4250L, TransactionType.Expense, "Food"),
+            Triple(1500L, TransactionType.Expense, "Transport"),
+            Triple(8999L, TransactionType.Expense, "Shopping"),
         )
-        olderItems.forEachIndexed { index, (amount, type, category) ->
+        olderItems.forEachIndexed { index, (amountCents, type, category) ->
             val timestamp = now - (8 + index) * day
-            addTransaction(amount, type, category, "Weekly $category replenishment", timestamp)
+            addTransaction(amountCents, type, category, "Weekly $category replenishment", timestamp)
         }
 
         // Last month transactions
         val lastMonthDay = now - 30 * day
-        addTransaction(3200.0, TransactionType.Income, "Salary", "Previous month salary", lastMonthDay)
-        addTransaction(1200.0, TransactionType.Expense, "Rent", "Monthly Apartment Rent", lastMonthDay + 1 * day)
+        addTransaction(320000L, TransactionType.Income, "Salary", "Previous month salary", lastMonthDay)
+        addTransaction(120000L, TransactionType.Expense, "Rent", "Monthly Apartment Rent", lastMonthDay + 1 * day)
     }
 
     fun getCsvData(): String {
@@ -234,7 +239,8 @@ class LedgerRepository(
         sb.append("Date,Type,Category,Amount,Note,Status\n")
         snapshot.transactions.forEach { t ->
             val date = formatDateTime(t.createdAt)
-            sb.append("${date},${t.type},${t.category},${t.amount},\"${t.note}\",${t.syncStatus}\n")
+            val amountFormatted = (t.amount / 100.0).toString()
+            sb.append("${date},${t.type},${t.category},${amountFormatted},\"${t.note}\",${t.syncStatus}\n")
         }
         return sb.toString()
     }

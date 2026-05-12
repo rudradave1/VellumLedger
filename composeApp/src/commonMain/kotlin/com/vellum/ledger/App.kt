@@ -322,7 +322,7 @@ fun App() {
 }
 
 @Composable
-private fun ReportItem(label: String, amount: Double, color: Color) {
+private fun ReportItem(label: String, amount: Long, color: Color) {
     val currency = com.vellum.ledger.ui.theme.LocalCurrency.current
     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
         Text(label, color = MaterialTheme.colorScheme.onSurfaceVariant)
