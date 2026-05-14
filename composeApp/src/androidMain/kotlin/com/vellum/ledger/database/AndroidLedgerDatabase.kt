@@ -22,7 +22,7 @@ actual fun createLedgerDatabase(): LedgerDatabase {
     val driver = AndroidSqliteDriver(
         schema = LedgerDb.Schema,
         context = AndroidLedgerContext.appContext,
-        name = "vellum_ledger_encrypted_v3.db",
+        name = "vellum_ledger_encrypted_v4.db",
         factory = factory,
         callback = object : AndroidSqliteDriver.Callback(LedgerDb.Schema) {
             override fun onOpen(db: SupportSQLiteDatabase) {

@@ -31,7 +31,9 @@ kotlin {
         androidMain.dependencies {
             implementation(libs.compose.uiToolingPreview)
             implementation(libs.androidx.activity.compose)
+            implementation(libs.androidx.core.ktx)
             implementation(libs.androidx.biometric)
+            implementation(libs.androidx.work.runtime.ktx)
             implementation(libs.sqldelight.android.driver)
             implementation(libs.sqlcipher.android)
             implementation(libs.ktor.client.okhttp)
@@ -48,6 +50,7 @@ kotlin {
             implementation(libs.kotlinx.datetime)
             implementation(libs.sqldelight.runtime)
             implementation(libs.sqldelight.coroutines.extensions)
+            implementation(libs.androidx.datastore.preferences)
             implementation(libs.compose.material.icons.extended)
             implementation(libs.ktor.client.core)
             implementation(libs.ktor.client.content.negotiation)

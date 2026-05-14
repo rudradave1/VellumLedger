@@ -44,11 +44,16 @@ internal class SqlDelightLedgerDatabase(
                     LedgerTransaction(
                         id = row.id,
                         amount = row.amount,
+                        originalAmount = row.original_amount,
+                        originalCurrency = row.original_currency,
                         type = row.type.toTransactionType(),
                         category = row.category,
                         note = row.note,
                         createdAt = row.created_at,
+                        updatedAt = row.updated_at,
                         syncStatus = row.sync_status.toSyncStatus(),
+                        localVersion = row.local_version.toInt(),
+                        serverVersion = row.server_version.toInt(),
                     )
                 }
             }
@@ -117,6 +122,7 @@ internal class SqlDelightLedgerDatabase(
                     dailyBudget = map["daily_budget"]?.toLongOrNull() ?: 0.toLong(),
                     monthlySummary = map["monthly_summary"],
                     summaryMonth = map["summary_month"],
+                    transactionCountAtCacheTime = map["tx_count_at_cache_time"]?.toIntOrNull() ?: 0,
                 )
             }
             .catch { e ->
@@ -140,11 +146,16 @@ internal class SqlDelightLedgerDatabase(
                 queries.insertTransaction(
                     id = transaction.id,
                     amount = transaction.amount,
+                    original_amount = transaction.originalAmount,
+                    original_currency = transaction.originalCurrency,
                     type = transaction.type.name.uppercase(),
                     category = transaction.category,
                     note = transaction.note,
                     created_at = transaction.createdAt,
+                    updated_at = transaction.updatedAt,
                     sync_status = transaction.syncStatus.name.uppercase(),
+                    local_version = transaction.localVersion.toLong(),
+                    server_version = transaction.serverVersion.toLong(),
                 )
                 queries.insertQueueItem(
                     id = queueItem.id,
@@ -154,6 +165,34 @@ internal class SqlDelightLedgerDatabase(
                     status = queueItem.status.name.uppercase(),
                 )
             }
+        }
+    }
+
+    override suspend fun restoreTransaction(transaction: LedgerTransaction): Boolean {
+        return withContext(Dispatchers.Default) {
+            var inserted = false
+            queries.transaction {
+                if (queries.selectTransactionById(transaction.id).executeAsOneOrNull() != null) {
+                    inserted = false
+                } else {
+                    queries.insertTransaction(
+                        id = transaction.id,
+                        amount = transaction.amount,
+                        original_amount = transaction.originalAmount,
+                        original_currency = transaction.originalCurrency,
+                        type = transaction.type.name.uppercase(),
+                        category = transaction.category,
+                        note = transaction.note,
+                        created_at = transaction.createdAt,
+                        updated_at = transaction.updatedAt,
+                        sync_status = transaction.syncStatus.name.uppercase(),
+                        local_version = transaction.localVersion.toLong(),
+                        server_version = transaction.serverVersion.toLong(),
+                    )
+                    inserted = true
+                }
+            }
+            inserted
         }
     }
 
@@ -173,11 +212,12 @@ internal class SqlDelightLedgerDatabase(
                 }
         }
 
-    override suspend fun markSynced(transactionId: String, queueItemId: String) {
+    override suspend fun markSynced(transactionId: String, queueItemId: String, serverVersion: Int) {
         withContext(Dispatchers.Default) {
             queries.transaction {
-                queries.updateTransactionSyncStatus(
+                queries.updateTransactionSyncStatusAndServerVersion(
                     sync_status = SyncStatus.Synced.name.uppercase(),
+                    server_version = serverVersion.toLong(),
                     id = transactionId,
                 )
                 queries.updateQueueStatus(
@@ -228,6 +268,7 @@ internal class SqlDelightLedgerDatabase(
                 queries.upsertSetting("daily_budget", next.dailyBudget.toString())
                 queries.upsertSetting("monthly_summary", next.monthlySummary ?: "")
                 queries.upsertSetting("summary_month", next.summaryMonth ?: "")
+                queries.upsertSetting("tx_count_at_cache_time", next.transactionCountAtCacheTime.toString())
             }
         }
     }
@@ -273,39 +314,23 @@ internal class SqlDelightLedgerDatabase(
         }
     }
 
-    override suspend fun convertCurrency(from: String, to: String) {
+    override suspend fun saveExchangeRates(rates: Map<String, Double>) {
         withContext(Dispatchers.Default) {
             queries.transaction {
-                val transactions = queries.selectAllTransactions().executeAsList()
-                transactions.forEach { t ->
-                    val newAmount = com.vellum.ledger.ui.util.ExchangeRateUtil.convert(t.amount, from, to)
-                    queries.insertTransaction(
-                        id = t.id,
-                        amount = newAmount,
-                        type = t.type,
-                        category = t.category,
-                        note = t.note,
-                        created_at = t.created_at,
-                        sync_status = t.sync_status,
-                    )
-                }
-                
-                val cards = queries.selectAllCards().executeAsList()
-                cards.forEach { c ->
-                    val newBalance = com.vellum.ledger.ui.util.ExchangeRateUtil.convert(c.balance, from, to)
-                    queries.insertCard(
-                        id = c.id,
-                        card_name = c.card_name,
-                        card_number = c.card_number,
-                        card_type = c.card_type,
-                        expiry = c.expiry,
-                        balance = newBalance,
-                        hex_color = c.hex_color,
-                    )
+                val now = currentTimeMillis()
+                rates.forEach { (code, rate) ->
+                    queries.upsertExchangeRate(code, rate, now)
                 }
             }
         }
     }
+
+    override suspend fun loadExchangeRates(): Map<String, Double> =
+        withContext(Dispatchers.Default) {
+            queries.selectAllExchangeRates()
+                .executeAsList()
+                .associate { it.currency_code to it.rate }
+        }
 }
 
 private fun String.toTransactionType(): TransactionType = when (uppercase()) {
@@ -330,4 +355,3 @@ private fun String.toCardType(): CardType = when (uppercase()) {
     "MASTERCARD" -> CardType.MasterCard
     else -> CardType.Amex
 }
-

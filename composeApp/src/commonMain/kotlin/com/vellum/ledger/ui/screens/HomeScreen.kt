@@ -43,8 +43,7 @@ import kotlin.math.abs
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
-    ledger: LedgerSnapshot,
-    transactions: List<TransactionUiModel>,
+    analytics: com.vellum.ledger.ui.model.AnalyticsUiModel,
     isSyncing: Boolean,
     onSyncClick: () -> Unit,
     onAddClick: () -> Unit,
@@ -52,6 +51,7 @@ fun HomeScreen(
     onDeleteTransaction: (String) -> Unit = {},
     lastSyncedMessage: String = "",
 ) {
+    val transactions = analytics.transactions
     var searchQuery by rememberSaveable { mutableStateOf("") }
     var selectedCategoryFilter by rememberSaveable { mutableStateOf("All") }
     
@@ -138,7 +138,7 @@ fun HomeScreen(
             }
         },
         containerColor = MaterialTheme.colorScheme.background
-    ) { paddingValues ->
+        ) { paddingValues ->
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
@@ -148,18 +148,27 @@ fun HomeScreen(
             contentPadding = PaddingValues(top = 16.dp, bottom = 24.dp)
         ) {
             item {
-                TotalBalanceCard(
-                    ledger.analytics.currentBalance,
-                    ledger.analytics.totalIncome,
-                    ledger.analytics.totalExpense
+                SyncStateBanner(
+                    transactions = transactions,
+                    isSyncing = isSyncing,
                 )
             }
 
+            item {
+                TotalBalanceCard(
+                    analytics.currentBalance,
+                    analytics.totalIncome,
+                    analytics.totalExpense
+                )
+            }
+
+            /* 
             if (ledger.settings.dailyBudget > 0) {
                 item {
                     DailyBudgetCard(ledger)
                 }
             }
+            */
 
             item {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -676,16 +685,111 @@ fun SyncStatusIndicator(
     onRetry: () -> Unit,
 ) {
     when (status) {
-        SyncStatus.Synced -> Icon(Icons.Outlined.CheckCircle, contentDescription = null, tint = SyncedColor, modifier = Modifier.size(16.dp))
-        SyncStatus.Pending -> Icon(Icons.Outlined.Schedule, contentDescription = null, tint = PendingColor, modifier = Modifier.size(16.dp))
-        SyncStatus.Syncing -> CircularProgressIndicator(modifier = Modifier.size(14.dp), strokeWidth = 2.dp, color = SyncingColor)
+        SyncStatus.Synced -> SyncStatusPill("Synced", SyncedColor, Icons.Outlined.CheckCircle)
+        SyncStatus.Pending -> SyncStatusPill("Pending", PendingColor, Icons.Outlined.Schedule)
+        SyncStatus.Syncing -> SyncStatusPill("Syncing", SyncingColor, null, showProgress = true)
         SyncStatus.Failed -> Row(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.clickable(onClick = onRetry),
         ) {
             Icon(Icons.Outlined.ErrorOutline, contentDescription = null, tint = FailedColor, modifier = Modifier.size(16.dp))
             Spacer(Modifier.width(4.dp))
-            Text("Retry", fontSize = 11.sp, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+            Text("Retrying", fontSize = 11.sp, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+        }
+    }
+}
+
+@Composable
+fun SyncStatusPill(
+    label: String,
+    tint: Color,
+    icon: ImageVector? = null,
+    showProgress: Boolean = false,
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+        modifier = Modifier
+            .clip(RoundedCornerShape(999.dp))
+            .background(tint.copy(alpha = 0.12f))
+            .padding(horizontal = 8.dp, vertical = 4.dp)
+    ) {
+        if (showProgress) {
+            CircularProgressIndicator(
+                modifier = Modifier.size(10.dp),
+                strokeWidth = 1.8.dp,
+                color = tint
+            )
+        } else if (icon != null) {
+            Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(12.dp))
+        }
+        Text(
+            label,
+            fontSize = 10.sp,
+            fontWeight = FontWeight.Bold,
+            color = tint
+        )
+    }
+}
+
+@Composable
+fun SyncStateBanner(
+    transactions: List<TransactionUiModel>,
+    isSyncing: Boolean,
+) {
+    val pendingCount = transactions.count { it.syncStatus == SyncStatus.Pending }
+    val syncingCount = transactions.count { it.syncStatus == SyncStatus.Syncing }
+    val syncedCount = transactions.count { it.syncStatus == SyncStatus.Synced }
+    val retryingCount = transactions.count { it.syncStatus == SyncStatus.Failed }
+
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        color = MaterialTheme.colorScheme.surface,
+        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.05f))
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            val bannerLabel = when {
+                isSyncing -> "Syncing"
+                retryingCount > 0 -> "Retrying"
+                pendingCount > 0 -> "Pending"
+                syncedCount > 0 -> "Synced"
+                else -> "Ready"
+            }
+            val bannerColor = when {
+                isSyncing -> SyncingColor
+                retryingCount > 0 -> FailedColor
+                pendingCount > 0 -> PendingColor
+                else -> SyncedColor
+            }
+            SyncStatusPill(
+                label = bannerLabel,
+                tint = bannerColor,
+                icon = when {
+                    isSyncing -> null
+                    retryingCount > 0 -> Icons.Outlined.ErrorOutline
+                    pendingCount > 0 -> Icons.Outlined.Schedule
+                    else -> Icons.Outlined.CheckCircle
+                },
+                showProgress = isSyncing
+            )
+
+            if (pendingCount > 0) {
+                Text("Pending: $pendingCount", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            if (syncingCount > 0) {
+                Text("Syncing: $syncingCount", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            if (retryingCount > 0) {
+                Text("Retrying: $retryingCount", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            if (syncedCount > 0) {
+                Text("Synced: $syncedCount", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
         }
     }
 }
@@ -729,4 +833,3 @@ private fun categoryIconAndTint(category: String): Pair<ImageVector, androidx.co
     "salary" -> Icons.Outlined.Payments to Secondary
     else -> Icons.Outlined.ShoppingCart to MaterialTheme.colorScheme.primary
 }
-

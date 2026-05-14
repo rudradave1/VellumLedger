@@ -24,14 +24,14 @@ class ComposeAppCommonTest {
     fun snapshotCalculatesAnalyticsFromLocalTransactions() {
         val snapshot = LedgerSnapshot(
             transactions = listOf(
-                transaction(amount = 200.0, type = TransactionType.Income),
-                transaction(amount = 35.5, type = TransactionType.Expense),
+                transaction(amount = 200L, type = TransactionType.Income),
+                transaction(amount = 35L, type = TransactionType.Expense),
             ),
         )
 
-        assertEquals(200.0, snapshot.analytics.totalIncome)
-        assertEquals(35.5, snapshot.analytics.totalExpense)
-        assertEquals(164.5, snapshot.analytics.currentBalance)
+        assertEquals(200L, snapshot.analytics.totalIncome)
+        assertEquals(35L, snapshot.analytics.totalExpense)
+        assertEquals(165L, snapshot.analytics.currentBalance)
     }
 
     @Test
@@ -61,17 +61,21 @@ class ComposeAppCommonTest {
 }
 
 private fun transaction(
-    amount: Double = 25.0,
+    amount: Long = 25L,
     type: TransactionType = TransactionType.Expense,
     syncStatus: SyncStatus = SyncStatus.Pending,
 ) = LedgerTransaction(
     id = "transaction-$amount-$type",
     amount = amount,
+    originalAmount = amount,
+    originalCurrency = "USD ($)",
     type = type,
     category = "Food",
     note = "",
     createdAt = 1L,
     syncStatus = syncStatus,
+    localVersion = 1,
+    serverVersion = 0,
 )
 
 private class FakeLedgerDatabase : LedgerDatabase {
@@ -90,13 +94,22 @@ private class FakeLedgerDatabase : LedgerDatabase {
         )
     }
 
+    override suspend fun restoreTransaction(transaction: LedgerTransaction): Boolean {
+        val exists = mutableState.value.transactions.any { it.id == transaction.id }
+        if (exists) return false
+        mutableState.value = mutableState.value.copy(
+            transactions = mutableState.value.transactions + transaction,
+        )
+        return true
+    }
+
     override suspend fun pendingQueueItems(): List<SyncQueueItem> =
         mutableState.value.queueItems.filter { it.status == QueueStatus.Pending }
 
-    override suspend fun markSynced(transactionId: String, queueItemId: String) {
+    override suspend fun markSynced(transactionId: String, queueItemId: String, serverVersion: Int) {
         mutableState.value = LedgerSnapshot(
             transactions = mutableState.value.transactions.map {
-                if (it.id == transactionId) it.copy(syncStatus = SyncStatus.Synced) else it
+                if (it.id == transactionId) it.copy(syncStatus = SyncStatus.Synced, serverVersion = serverVersion) else it
             },
             queueItems = mutableState.value.queueItems.map {
                 if (it.id == queueItemId) it.copy(status = QueueStatus.Done) else it
@@ -149,7 +162,13 @@ private class FakeLedgerDatabase : LedgerDatabase {
         mutableState.value = LedgerSnapshot(settings = mutableState.value.settings)
     }
 
-    override suspend fun convertCurrency(from: String, to: String) {
-        // No-op for fake
+    override suspend fun deleteTransaction(transactionId: String) {
+        mutableState.value = mutableState.value.copy(
+            transactions = mutableState.value.transactions.filter { it.id != transactionId }
+        )
     }
+
+    override suspend fun saveExchangeRates(rates: Map<String, Double>) = Unit
+
+    override suspend fun loadExchangeRates(): Map<String, Double> = emptyMap()
 }

@@ -17,14 +17,20 @@ class UiMapper(private val stringProvider: StringProvider) {
         val (icon, _) = categoryIconAndTint(transaction.category)
         val color = if (transaction.type == TransactionType.Income) IncomeColor else ExpenseColor
         
+        val convertedAmount = com.vellum.ledger.ui.util.ExchangeRateUtil.convert(
+            transaction.originalAmount,
+            transaction.originalCurrency,
+            currency
+        )
+        
         val dateText = Instant.fromEpochMilliseconds(transaction.createdAt)
             .toLocalDateTime(TimeZone.currentSystemDefault())
             .let { "${it.dayOfMonth} ${it.month.name.take(3)}, ${it.year}" }
 
         return TransactionUiModel(
             id = transaction.id,
-            amount = transaction.amount,
-            amountFormatted = (if (transaction.type == TransactionType.Income) "+" else "-") + stringProvider.formatMoney(transaction.amount, currency),
+            amount = convertedAmount,
+            amountFormatted = (if (transaction.type == TransactionType.Income) "+" else "-") + stringProvider.formatMoney(convertedAmount, currency),
             type = transaction.type,
             category = transaction.category,
             categoryIcon = icon,
@@ -59,20 +65,32 @@ class UiMapper(private val stringProvider: StringProvider) {
             dailyBudget = settings.dailyBudget,
             dailyBudgetFormatted = stringProvider.formatMoney(settings.dailyBudget, settings.currency),
             monthlySummary = settings.monthlySummary,
-            isSummaryLoading = isSummaryLoading
+            isSummaryLoading = isSummaryLoading,
+            areRatesAvailable = com.vellum.ledger.ui.util.ExchangeRateUtil.isAvailable()
         )
     }
 
     fun mapToAnalyticsUi(ledger: LedgerSnapshot): AnalyticsUiModel {
         val currency = ledger.settings.currency
+        
+        val convertedTransactions = ledger.transactions.map { mapToTransactionUi(it, currency) }
+        
+        val totalIncome = convertedTransactions
+            .filter { it.type == TransactionType.Income }
+            .sumOf { it.amount }
+            
+        val totalExpense = convertedTransactions
+            .filter { it.type == TransactionType.Expense }
+            .sumOf { it.amount }
+
         return AnalyticsUiModel(
-            totalIncome = ledger.analytics.totalIncome,
-            totalIncomeFormatted = stringProvider.formatMoney(ledger.analytics.totalIncome, currency),
-            totalExpense = ledger.analytics.totalExpense,
-            totalExpenseFormatted = stringProvider.formatMoney(ledger.analytics.totalExpense, currency),
-            currentBalance = ledger.analytics.currentBalance,
-            currentBalanceFormatted = stringProvider.formatMoney(ledger.analytics.currentBalance, currency),
-            transactions = ledger.transactions.map { mapToTransactionUi(it, currency) }
+            totalIncome = totalIncome,
+            totalIncomeFormatted = stringProvider.formatMoney(totalIncome, currency),
+            totalExpense = totalExpense,
+            totalExpenseFormatted = stringProvider.formatMoney(totalExpense, currency),
+            currentBalance = totalIncome - totalExpense,
+            currentBalanceFormatted = stringProvider.formatMoney(totalIncome - totalExpense, currency),
+            transactions = convertedTransactions
         )
     }
 

@@ -7,6 +7,7 @@ import com.vellum.ledger.domain.LedgerSnapshot
 import com.vellum.ledger.domain.TransactionType
 import com.vellum.ledger.data.currentTimeMillis
 import com.vellum.ledger.repository.LedgerRepository
+import com.vellum.ledger.ui.model.CsvExportRequest
 import com.vellum.ledger.ui.mapper.UiMapper
 import com.vellum.ledger.ui.model.AnalyticsUiModel
 import com.vellum.ledger.ui.model.CardUiModel
@@ -15,6 +16,7 @@ import com.vellum.ledger.ui.model.TransactionUiModel
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
@@ -31,12 +33,22 @@ class LedgerViewModel(
 
     val ledger: StateFlow<LedgerSnapshot> = repository.ledger
     val errorEvents: SharedFlow<String> = GlobalErrorHandler.errorEvents
+    private val _saveEvents = MutableSharedFlow<String>(extraBufferCapacity = 1)
+    val saveEvents: SharedFlow<String> = _saveEvents
 
     private val _isSyncing = MutableStateFlow(false)
     val isSyncing: StateFlow<Boolean> = _isSyncing.asStateFlow()
 
     private val _isSummaryLoading = MutableStateFlow(false)
     val isSummaryLoading: StateFlow<Boolean> = _isSummaryLoading.asStateFlow()
+
+    private val _isRestoring = MutableStateFlow(false)
+    val isRestoring: StateFlow<Boolean> = _isRestoring.asStateFlow()
+
+    init {
+        // Automatically check for summary refresh on init (app open)
+        refreshSummary(force = false)
+    }
 
     val transactions: StateFlow<List<TransactionUiModel>> =
         ledger
@@ -92,8 +104,9 @@ class LedgerViewModel(
             try {
                 if (amountCents <= 0) return@launch
                 repository.addTransaction(amountCents, type, category, note, timestamp)
+                _saveEvents.tryEmit("Transaction saved locally")
                 if (autoSync.value) {
-                    syncNow()
+                    performSync()
                 }
             } catch (e: Exception) {
                 GlobalErrorHandler.handleError(e)
@@ -102,18 +115,37 @@ class LedgerViewModel(
     }
 
     fun syncNow() {
-        if (_isSyncing.value) return
         viewModelScope.launch {
+            performSync()
+        }
+    }
+
+    fun restoreFromBackup() {
+        viewModelScope.launch {
+            if (_isRestoring.value) return@launch
             try {
-                _isSyncing.value = true
-                // Simulate a "real" sync delay for better UX
-                kotlinx.coroutines.delay(1500)
-                val result = repository.syncNow()
-                _isSyncing.value = false
+                _isRestoring.value = true
+                val result = repository.restoreFromBackup()
+                _saveEvents.tryEmit(
+                    "Restored ${result.restored} transactions from backup${if (result.skipped > 0) " (${result.skipped} skipped)" else ""}"
+                )
             } catch (e: Exception) {
-                _isSyncing.value = false
                 GlobalErrorHandler.handleError(e)
+            } finally {
+                _isRestoring.value = false
             }
+        }
+    }
+
+    private suspend fun performSync() {
+        if (_isSyncing.value) return
+        try {
+            _isSyncing.value = true
+            repository.syncNow()
+        } catch (e: Exception) {
+            GlobalErrorHandler.handleError(e)
+        } finally {
+            _isSyncing.value = false
         }
     }
 
@@ -140,7 +172,7 @@ class LedgerViewModel(
     fun retryTransaction(transactionId: String) {
         viewModelScope.launch {
             repository.retryTransaction(transactionId)
-            syncNow()
+            performSync()
         }
     }
 
@@ -170,8 +202,8 @@ class LedgerViewModel(
         viewModelScope.launch { repository.populateDemoData() }
     }
 
-    fun exportCSV(): String {
-        return repository.getCsvData()
+    fun exportCSV(): CsvExportRequest {
+        return repository.buildCsvExportRequest()
     }
 
     fun refreshSummary(force: Boolean = false) {

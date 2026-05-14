@@ -22,6 +22,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.vellum.ledger.repository.LedgerRepository
+import com.vellum.ledger.sync.DeviceIdentityManager
+import com.vellum.ledger.data.createDataStore
 import com.vellum.ledger.ui.mapper.UiMapper
 import com.vellum.ledger.ui.provider.CommonStringProvider
 import com.vellum.ledger.ui.screens.AddTransactionScreen
@@ -33,6 +35,7 @@ import com.vellum.ledger.ui.components.VellumButton
 import com.vellum.ledger.ui.theme.*
 import com.vellum.ledger.ui.util.*
 import com.vellum.ledger.ui.viewmodel.LedgerViewModel
+import com.vellum.ledger.ui.model.CsvExportRequest
 import kotlinx.coroutines.launch
 
 enum class Screen {
@@ -45,22 +48,28 @@ enum class Screen {
 
 @Composable
 fun App() {
-    val repository = remember { LedgerRepository() }
+    val dataStore = remember { createDataStore() }
+    val deviceIdentityManager = remember { DeviceIdentityManager(dataStore) }
+    val repository = remember { LedgerRepository(deviceIdentityManager = deviceIdentityManager) }
+    
+    LaunchedEffect(Unit) {
+        repository.initialize()
+    }
+
     val stringProvider = remember { CommonStringProvider() }
     val uiMapper = remember { UiMapper(stringProvider) }
     val viewModel: LedgerViewModel = viewModel { LedgerViewModel(repository, uiMapper) }
     val haptic = LocalHapticFeedback.current
     val authenticator = rememberBiometricAuthenticator()
     
-    val ledger by viewModel.ledger.collectAsState()
-    val transactions by viewModel.transactions.collectAsState()
     val cards by viewModel.cards.collectAsState()
     val isSyncing by viewModel.isSyncing.collectAsState()
+    val isRestoring by viewModel.isRestoring.collectAsState()
     val settings by viewModel.settings.collectAsState()
     val analytics by viewModel.analytics.collectAsState()
     
     var currentScreen by rememberSaveable { mutableStateOf(Screen.Home) }
-    var exportCsvData by rememberSaveable { mutableStateOf<String?>(null) }
+    var exportCsvRequest by remember { mutableStateOf<CsvExportRequest?>(null) }
     var showReportDialog by rememberSaveable { mutableStateOf(false) }
     var isUnlocked by rememberSaveable { mutableStateOf(false) }
 
@@ -74,10 +83,17 @@ fun App() {
         }
     }
 
-    val isSystemDark = androidx.compose.foundation.isSystemInDarkTheme()
-    val isDarkMode = settings.isDarkMode ?: isSystemDark
+    LaunchedEffect(viewModel.saveEvents) {
+        viewModel.saveEvents.collect { message ->
+            snackbarHostState.showSnackbar(message)
+        }
+    }
 
-    LedgerTheme(darkTheme = isDarkMode, currency = settings.currency) {
+    val isDarkMode by viewModel.isDarkMode.collectAsState(initial = null)
+    val isSystemDark = androidx.compose.foundation.isSystemInDarkTheme()
+    val finalDarkMode = isDarkMode ?: isSystemDark
+
+    LedgerTheme(darkTheme = finalDarkMode, currency = settings.currency) {
         if (settings.isBiometricEnabled && !isUnlocked) {
             Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
                 Column(
@@ -172,8 +188,7 @@ fun App() {
                     ) { screen ->
                         when (screen) {
                             Screen.Home -> HomeScreen(
-                                ledger = ledger,
-                                transactions = transactions,
+                                analytics = analytics,
                                 isSyncing = isSyncing,
                                 onSyncClick = { 
                                     haptic.performHapticFeedback(HapticFeedbackType.LongPress)
@@ -219,8 +234,10 @@ fun App() {
                                     onSyncNow = { viewModel.syncNow() },
                                     isSyncing = isSyncing,
                                     onExportCSV = { 
-                                        exportCsvData = viewModel.exportCSV()
+                                        exportCsvRequest = viewModel.exportCSV()
                                     },
+                                    onRestoreBackup = { viewModel.restoreFromBackup() },
+                                    isRestoring = isRestoring,
                                     onClearData = { viewModel.clearAll() },
                                     onPopulateDemoData = { viewModel.populateDemoData() },
                                     onDailyBudgetChange = { viewModel.setDailyBudget(it) },
@@ -234,27 +251,30 @@ fun App() {
         }
     }
 
-    if (exportCsvData != null) {
+    if (exportCsvRequest != null) {
         AlertDialog(
-            onDismissRequest = { exportCsvData = null },
+            onDismissRequest = { exportCsvRequest = null },
             title = { Text("Export Data") },
             text = {
                 Column {
-                    Text("CSV Data generated successfully.", fontWeight = FontWeight.Bold)
+                    Text("CSV file generated successfully.", fontWeight = FontWeight.Bold)
                     Spacer(Modifier.height(8.dp))
-                    Text("You can now share or save this file.")
+                    Text("Filename: ${exportCsvRequest!!.fileName}")
                 }
             },
             confirmButton = {
-                Button(onClick = { 
-                    com.vellum.ledger.data.shareText(exportCsvData!!, "Ledger_Export.csv")
-                    exportCsvData = null 
+                Button(onClick = {
+                    com.vellum.ledger.data.exportCsvFile(
+                        exportCsvRequest!!.csvContent,
+                        exportCsvRequest!!.fileName
+                    )
+                    exportCsvRequest = null
                 }) {
-                    Text("Share / Save")
+                    Text("Save & Share")
                 }
             },
             dismissButton = {
-                TextButton(onClick = { exportCsvData = null }) {
+                TextButton(onClick = { exportCsvRequest = null }) {
                     Text("Close")
                 }
             }
@@ -337,10 +357,9 @@ fun BottomNavigationBar(
 ) {
     val items = listOf(
         Triple(Screen.Home, "Home", Icons.Outlined.Home),
-        Triple(Screen.Cards, "Cards", Icons.Outlined.CreditCard),
-        Triple(Screen.Analytics, "Charts", Icons.Outlined.BarChart),
-        Triple(Screen.Settings, "Settings", Icons.Outlined.Settings)
+        Triple(Screen.Analytics, "Charts", Icons.Outlined.BarChart)
     )
+    var showMoreMenu by rememberSaveable { mutableStateOf(false) }
 
     Surface(
         color = MaterialTheme.colorScheme.surface,
@@ -399,6 +418,64 @@ fun BottomNavigationBar(
                                 letterSpacing = 0.sp
                             )
                         }
+                    }
+                }
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clickable(
+                            interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                            indication = null,
+                            onClick = { showMoreMenu = true }
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    val moreSelected = currentScreen == Screen.Cards || currentScreen == Screen.Settings
+                    val moreColor = if (moreSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(MaterialTheme.colorScheme.primary.copy(alpha = if (moreSelected) 0.12f else 0f))
+                            .padding(horizontal = 16.dp, vertical = 8.dp)
+                    ) {
+                        Icon(
+                            Icons.Outlined.MoreVert,
+                            contentDescription = "More",
+                            tint = moreColor,
+                            modifier = Modifier.size(24.dp)
+                        )
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            "More",
+                            fontSize = 11.sp,
+                            fontWeight = if (moreSelected) FontWeight.ExtraBold else FontWeight.SemiBold,
+                            color = moreColor,
+                            letterSpacing = 0.sp
+                        )
+                    }
+
+                    DropdownMenu(
+                        expanded = showMoreMenu,
+                        onDismissRequest = { showMoreMenu = false }
+                    ) {
+                        DropdownMenuItem(
+                            text = { Text("Cards") },
+                            leadingIcon = { Icon(Icons.Outlined.CreditCard, contentDescription = null) },
+                            onClick = {
+                                showMoreMenu = false
+                                onScreenSelected(Screen.Cards)
+                            }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Settings") },
+                            leadingIcon = { Icon(Icons.Outlined.Settings, contentDescription = null) },
+                            onClick = {
+                                showMoreMenu = false
+                                onScreenSelected(Screen.Settings)
+                            }
+                        )
                     }
                 }
             }

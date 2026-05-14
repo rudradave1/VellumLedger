@@ -6,9 +6,10 @@ import kotlin.math.pow
 
 fun formatMoney(amountCents: Long, currency: String = "USD ($)", compact: Boolean = false): String {
     val symbol = currency.substringAfter("(").substringBefore(")")
+    val isNegative = amountCents < 0
     val value = abs(amountCents)
     
-    if (compact && value >= 100000) { // Compact only for >= 1,000.00
+    val formattedValue = if (compact && value >= 100000) { // Compact only for >= 1,000.00
         val dollarValue = value / 100.0
         val suffixes = arrayOf("", "K", "M", "B", "T")
         val i = (ln(dollarValue) / ln(1000.0)).toInt().coerceAtMost(suffixes.size - 1)
@@ -18,14 +19,15 @@ fun formatMoney(amountCents: Long, currency: String = "USD ($)", compact: Boolea
         val rounded = ((shortValue * 10).toLong()) / 10.0
         val roundedStr = if (rounded % 1.0 == 0.0) rounded.toLong().toString() else rounded.toString()
         
-        return "$symbol$roundedStr${suffixes[i]}"
+        "$roundedStr${suffixes[i]}"
+    } else {
+        val dollars = value / 100
+        val cents = value % 100
+        val dollarsStr = dollars.toString().reversed().chunked(3).joinToString(",").reversed()
+        "$dollarsStr.${cents.toString().padStart(2, '0')}"
     }
 
-    val dollars = value / 100
-    val cents = value % 100
-    
-    val dollarsStr = dollars.toString().reversed().chunked(3).joinToString(",").reversed()
-    return "$symbol$dollarsStr.${cents.toString().padStart(2, '0')}"
+    return if (isNegative) "-$symbol$formattedValue" else "$symbol$formattedValue"
 }
 
 

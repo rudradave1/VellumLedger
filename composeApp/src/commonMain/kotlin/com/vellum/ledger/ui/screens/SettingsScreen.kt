@@ -34,6 +34,8 @@ fun SettingsScreen(
     onSyncNow: () -> Unit,
     isSyncing: Boolean,
     onExportCSV: () -> Unit,
+    onRestoreBackup: () -> Unit,
+    isRestoring: Boolean,
     onClearData: () -> Unit,
     onPopulateDemoData: () -> Unit = {},
     onDailyBudgetChange: (Long) -> Unit = {},
@@ -120,6 +122,15 @@ fun SettingsScreen(
                         //HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.outline.copy(alpha = 0.05f))
                         SettingsItem(title = "Export Data (CSV)", showArrow = true, onClick = onExportCSV)
                         HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.outline.copy(alpha = 0.05f))
+                        SettingsItem(
+                            title = "Restore from backup",
+                            value = if (isRestoring) "Restoring..." else null,
+                            showArrow = !isRestoring,
+                            color = MaterialTheme.colorScheme.primary,
+                            enabled = !isRestoring,
+                            onClick = onRestoreBackup
+                        )
+                        HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.outline.copy(alpha = 0.05f))
                         SettingsItem(title = "Clear Local Data", color = Color(0xFFEF4444), onClick = { showClearConfirm = true })
                     }
                 }
@@ -138,9 +149,18 @@ fun SettingsScreen(
                         SettingsItem(
                             title = "Default Currency", 
                             value = settings.currency, 
-                            showArrow = true,
-                            onClick = { showCurrencyDialog = true }
+                            showArrow = settings.areRatesAvailable,
+                            onClick = { if (settings.areRatesAvailable) showCurrencyDialog = true },
+                            color = if (settings.areRatesAvailable) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
                         )
+                        if (!settings.areRatesAvailable) {
+                            Text(
+                                "Currency conversion is currently unavailable. Please check your network connection.",
+                                fontSize = 12.sp,
+                                color = MaterialTheme.colorScheme.error,
+                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+                            )
+                        }
                         HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.outline.copy(alpha = 0.05f))
                         Row(
                             modifier = Modifier.fillMaxWidth().padding(16.dp),
@@ -207,7 +227,7 @@ fun SettingsScreen(
         AlertDialog(
             onDismissRequest = { showClearConfirm = false },
             title = { Text("Clear All Data?") },
-            text = { Text("This will permanently delete all your transactions and linked cards. This action cannot be undone.") },
+            text = { Text("This will remove all transactions and linked cards from this device. Server data is not deleted. This action cannot be undone on this device.") },
             confirmButton = {
                 Button(
                     onClick = {
@@ -380,10 +400,14 @@ fun SettingsItem(
     value: String? = null, 
     showArrow: Boolean = false, 
     color: Color = MaterialTheme.colorScheme.onSurface,
+    enabled: Boolean = true,
     onClick: () -> Unit = {}
 ) {
     Row(
-        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick).padding(16.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(enabled = enabled) { onClick() }
+            .padding(16.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {

@@ -40,7 +40,8 @@ data class SettingsUiModel(
     val dailyBudget: Long,
     val dailyBudgetFormatted: String,
     val monthlySummary: String?,
-    val isSummaryLoading: Boolean
+    val isSummaryLoading: Boolean,
+    val areRatesAvailable: Boolean = true
 )
 
 data class AnalyticsUiModel(
@@ -53,3 +54,7 @@ data class AnalyticsUiModel(
     val transactions: List<TransactionUiModel>
 )
 
+data class CsvExportRequest(
+    val fileName: String,
+    val csvContent: String,
+)

@@ -46,17 +46,23 @@ data class LedgerSettings(
     val dailyBudget: Long = 0,
     val monthlySummary: String? = null,
     val summaryMonth: String? = null, // Format: YYYY-MM
+    val transactionCountAtCacheTime: Int = 0,
 )
 
 @Serializable
 data class LedgerTransaction(
     val id: String,
     val amount: Long,
+    val originalAmount: Long,
+    val originalCurrency: String,
     val type: TransactionType,
     val category: String,
     val note: String,
     val createdAt: Long,
+    val updatedAt: Long = createdAt,
     val syncStatus: SyncStatus,
+    val localVersion: Int = 1,
+    val serverVersion: Int = 0,
 )
 
 data class SyncQueueItem(

@@ -13,7 +13,7 @@ data class SyncResult(
 
 class SyncWorker(
     private val database: LedgerDatabase,
-    private val api: LedgerApi = KtorLedgerApi(),
+    private val api: LedgerApi,
 ) {
     suspend fun processQueue(): SyncResult {
         val pendingItems = database.pendingQueueItems()
@@ -44,15 +44,64 @@ class SyncWorker(
                     delay(baseDelay + jitter)
                 }
 
-                api.pushBatch(transactionsToSync)
-                
-                transactionsToSync.forEach { transaction ->
-                    val queueItem = pendingItems.first { it.entityId == transaction.id }
-                    database.markSynced(transaction.id, queueItem.id)
+                val response = api.pushBatch(transactionsToSync)
+
+                if (!response.success) {
+                    throw SyncException(response.message ?: "Backend reported sync failure")
                 }
+
+                val acknowledgements = if (response.acknowledgements.isEmpty()) {
+                    println(
+                        "SyncWorker: Backend returned success without acknowledgements; " +
+                            "treating all ${transactionsToSync.size} items as synced."
+                    )
+                    transactionsToSync.map { tx ->
+                        SyncAcknowledgement(
+                            id = tx.id,
+                            serverVersion = maxOf(1, tx.serverVersion + 1),
+                        )
+                    }
+                } else {
+                    response.acknowledgements
+                }
+
+                val acknowledgedIds = acknowledgements.map { it.id }.toSet()
+
+                acknowledgements.forEach { ack ->
+                    val localTx = database.state.value.transactions.firstOrNull { it.id == ack.id }
+                    val txAtStart = transactionsToSync.firstOrNull { it.id == ack.id }
+                    
+                    if (localTx != null && txAtStart != null) {
+                        if (localTx.localVersion > txAtStart.localVersion) {
+                            println("SyncWorker: Conflict for ${ack.id}. Local v${localTx.localVersion} > Sync v${txAtStart.localVersion}. Re-sync required.")
+                            database.markPending(ack.id)
+                        } else {
+                            val queueItem = pendingItems.first { it.entityId == ack.id }
+                            database.markSynced(ack.id, queueItem.id, ack.serverVersion)
+                        }
+                    }
+                }
+                
+                // If any transactions were NOT acknowledged, move them back to Pending so they aren't stuck in Syncing
+                transactionsToSync.filter { it.id !in acknowledgedIds }.forEach {
+                    database.markPending(it.id)
+                }
+
                 success = true
+                return SyncResult(
+                    attempted = transactionsToSync.size,
+                    synced = acknowledgedIds.size,
+                    failed = transactionsToSync.size - acknowledgedIds.size,
+                )
             } catch (e: Throwable) {
                 retryCount++
+                println("SyncWorker: Attempt $retryCount failed: ${e.message}")
+                
+                // Show a non-blocking error so the user knows why it's still "Syncing"
+                com.vellum.ledger.ui.util.GlobalErrorHandler.handleError(
+                    Exception("Sync Attempt $retryCount failed. Retrying... (${e.message})")
+                )
+
                 if (retryCount > maxRetries) {
                     transactionsToSync.forEach { database.markFailed(it.id) }
                 }
@@ -66,4 +115,3 @@ class SyncWorker(
         )
     }
 }
-

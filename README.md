@@ -2,7 +2,7 @@
 
 > Offline-first personal finance for Android and iOS with a live Ktor sync backend.
 
-A privacy-focused expense tracker built with Kotlin Multiplatform. Every write lands in SQLDelight first. The network is an enhancement, not a dependency. When connectivity returns, a background sync queue pushes mutations to a real deployed backend with JWT auth and timestamp-based conflict resolution.
+A privacy-focused expense tracker built with Kotlin Multiplatform. Every write lands in SQLDelight first. The network is an enhancement, not a dependency. When connectivity returns, a sync queue pushes mutations to a real deployed backend with JWT auth and timestamp-based conflict resolution. On Android, durable background sync is scheduled with WorkManager.
 
 **This is a complete system** mobile client, local database, sync engine, and a production Ktor + PostgreSQL server-> all in Kotlin.
 
@@ -32,14 +32,16 @@ The sync server is deployed on Railway and accepting requests:
 # Health check
 curl https://vellum-ledger-api-production.up.railway.app/health
 
-# Register
+# Register (device UUID only; the app sends the same shape)
 curl -X POST https://vellum-ledger-api-production.up.railway.app/auth/register \
   -H "Content-Type: application/json" \
-  -d '{"email":"test@example.com","password":"password123"}'
+  -d '{"deviceId":"<paste-a-stable-uuid>"}'
 
-# Pull transactions after sync (replace TOKEN)
-curl "https://vellum-ledger-api-production.up.railway.app/transactions/pull?lastSync=0" \
-  -H "Authorization: Bearer TOKEN"
+# Push transactions after sync (replace TOKEN)
+curl -X POST https://vellum-ledger-api-production.up.railway.app/transactions/push \
+  -H "Authorization: Bearer TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"transactions":[]}'
 ```
 
 Backend source: [vellum-ledger-api](https://github.com/rudradave1/vellum-ledger-api)-> Ktor · Exposed ORM · PostgreSQL · Railway
@@ -70,7 +72,7 @@ Backend source: [vellum-ledger-api](https://github.com/rudradave1/vellum-ledger-
 │      Transactions · Cards · SyncQueue tables      │
 │  expect/actual drivers: Android · iOS (Native)    │
 └───────────────────────────────────────────────────┘
-                    │ push/pull
+                    │ push sync
 ┌───────────────────▼───────────────────────────────┐
 │            Ktor Server (Railway)                  │
 │     PostgreSQL · Exposed ORM · JWT Auth           │
@@ -97,7 +99,9 @@ User action
 
 **Conflict resolution rule:** `updatedAt` timestamp wins. If the server holds a newer version of a transaction, the push is rejected and the server version is returned on next pull. The mobile app never silently overwrites server state.
 
-**Failure handling:** Failed syncs stay `PENDING` with exponential backoff. The `GlobalErrorHandler` surfaces network and DB errors via Snackbar-> nothing fails silently.
+**Failure handling:** Failed syncs stay `PENDING` with exponential backoff. The `GlobalErrorHandler` surfaces network and DB errors via Snackbar, and the Home screen shows plain-language `Pending`, `Syncing`, `Synced`, and `Retrying` states.
+
+**Background sync:** Android schedules an immediate and periodic WorkManager job so pending transactions get another chance after app kill or relaunch. iOS relies on the next app run and the persisted sync queue.
 
 ---
 
@@ -136,7 +140,8 @@ Simple, auditable, and correct for a single-user finance app. Last write wins by
 | SQLCipher database encryption | ✅ |
 | Dark mode (system-aware) | ✅ |
 | JWT authentication with 30-day token expiry | ✅ |
-| Live backend-> push/pull sync over HTTPS | ✅ |
+| Live backend -> push sync over HTTPS | ✅ |
+| Durable Android background sync | ✅ |
 | Crash reporting (Crashlytics) | 🔧 Roadmap |
 | iOS TestFlight distribution | 🔧 Roadmap |
 
@@ -195,6 +200,8 @@ open iosApp/iosApp.xcworkspace
 Requires JDK 17+, Android Studio Hedgehog or newer, Xcode 15+ for iOS.
 
 The app runs fully offline without a backend connection. Sync activates when the server is reachable and a user session exists.
+
+`Clear Local Data` clears only the local SQLDelight database and local queue. It does not delete server-side data. A separate remote-delete flow would be needed if we want a true account/data reset on the backend.
 
 ---
 

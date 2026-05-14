@@ -18,12 +18,16 @@ class LedgerApiTest {
 
     private val testTransaction = LedgerTransaction(
         id = "test-123",
-        amount = 100.0,
+        amount = 100L,
+        originalAmount = 100L,
+        originalCurrency = "USD ($)",
         type = TransactionType.Expense,
         category = "Food",
         note = "Pizza",
         createdAt = 123456789L,
-        syncStatus = SyncStatus.Pending
+        syncStatus = SyncStatus.Pending,
+        localVersion = 1,
+        serverVersion = 0
     )
 
     @Test
@@ -45,10 +49,11 @@ class LedgerApiTest {
             }
         }
 
-        val userSession = SimpleUserSession()
-        val api = KtorLedgerApi(client, userSession)
+        val deviceIdentityManager = DeviceIdentityManager(InMemoryPreferencesDataStore())
+        val userSession = FakeUserSession(token = "token-123", userId = "user-123")
+        val api = KtorLedgerApi(deviceIdentityManager, client, userSession)
         
-        api.push(testTransaction)
+        api.pushBatch(listOf(testTransaction))
         
         assertEquals(1, mockEngine.requestHistory.size)
         val request = mockEngine.requestHistory[0]
@@ -59,11 +64,22 @@ class LedgerApiTest {
 
     @Test
     fun testPushFailure() = runTest {
-        val mockEngine = MockEngine { _ ->
-            respond(
-                content = "Unauthorized",
-                status = HttpStatusCode.Unauthorized
-            )
+        val mockEngine = MockEngine { request ->
+            when {
+                request.url.encodedPath.endsWith("/transactions/push") -> respond(
+                    content = "Unauthorized",
+                    status = HttpStatusCode.Unauthorized
+                )
+                request.url.encodedPath.endsWith("/auth/login") -> respond(
+                    content = "Unauthorized",
+                    status = HttpStatusCode.Unauthorized
+                )
+                request.url.encodedPath.endsWith("/auth/register") -> respond(
+                    content = "Unauthorized",
+                    status = HttpStatusCode.Unauthorized
+                )
+                else -> error("Unexpected path ${request.url}")
+            }
         }
 
         val client = HttpClient(mockEngine) {
@@ -75,11 +91,49 @@ class LedgerApiTest {
             }
         }
 
-        val api = KtorLedgerApi(client)
+        val api = KtorLedgerApi(
+            DeviceIdentityManager(InMemoryPreferencesDataStore()),
+            client,
+            FakeUserSession(token = "token-123", userId = "user-123")
+        )
         
-        val result = runCatching { api.push(testTransaction) }
+        val result = runCatching { api.pushBatch(listOf(testTransaction)) }
         
         assertTrue(result.isFailure)
         assertTrue(result.exceptionOrNull() is SyncException)
+    }
+}
+
+private class FakeUserSession : UserSession {
+    private var token: String
+    private var userId: String
+
+    constructor(token: String = "", userId: String = "") {
+        this.token = token
+        this.userId = userId
+    }
+
+    override fun getToken(): String = token
+    override fun getUserId(): String = userId
+    override fun updateSession(token: String, userId: String) {
+        this.token = token
+        this.userId = userId
+    }
+
+    override val isAuthenticated: Boolean
+        get() = token.isNotEmpty()
+
+    override suspend fun initialize() = Unit
+}
+
+private class InMemoryPreferencesDataStore : androidx.datastore.core.DataStore<androidx.datastore.preferences.core.Preferences> {
+    private val state = kotlinx.coroutines.flow.MutableStateFlow(androidx.datastore.preferences.core.emptyPreferences())
+
+    override val data = state
+
+    override suspend fun updateData(transform: suspend (t: androidx.datastore.preferences.core.Preferences) -> androidx.datastore.preferences.core.Preferences): androidx.datastore.preferences.core.Preferences {
+        val updated = transform(state.value)
+        state.value = updated
+        return updated
     }
 }

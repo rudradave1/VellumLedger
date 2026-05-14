@@ -12,9 +12,11 @@ interface LedgerDatabase {
 
     suspend fun insertTransactionWithQueue(transaction: LedgerTransaction, queueItem: SyncQueueItem)
 
+    suspend fun restoreTransaction(transaction: LedgerTransaction): Boolean
+
     suspend fun pendingQueueItems(): List<SyncQueueItem>
 
-    suspend fun markSynced(transactionId: String, queueItemId: String)
+    suspend fun markSynced(transactionId: String, queueItemId: String, serverVersion: Int)
 
     suspend fun markSyncing(transactionId: String)
 
@@ -32,7 +34,8 @@ interface LedgerDatabase {
 
     suspend fun clearAll()
 
-    suspend fun convertCurrency(from: String, to: String)
+    suspend fun saveExchangeRates(rates: Map<String, Double>)
+    suspend fun loadExchangeRates(): Map<String, Double>
 }
 
 expect fun createLedgerDatabase(): LedgerDatabase

@@ -6,7 +6,9 @@ import platform.LocalAuthentication.LAContext
 import platform.LocalAuthentication.LAPolicyDeviceOwnerAuthenticationWithBiometrics
 import platform.LocalAuthentication.LAPolicyDeviceOwnerAuthentication
 import platform.Foundation.NSError
+import kotlinx.cinterop.ExperimentalForeignApi
 
+@OptIn(ExperimentalForeignApi::class)
 actual class BiometricAuthenticator {
     actual fun isAvailable(): Boolean {
         val context = LAContext()
@@ -20,10 +22,7 @@ actual class BiometricAuthenticator {
         onError: (String) -> Unit
     ) {
         val context = LAContext()
-        var error: NSError? = null
-        
-        // Try biometrics first, fallback to device passcode
-        if (context.canEvaluatePolicy(LAPolicyDeviceOwnerAuthentication, error)) {
+        if (context.canEvaluatePolicy(LAPolicyDeviceOwnerAuthentication, null)) {
             context.evaluatePolicy(
                 LAPolicyDeviceOwnerAuthentication,
                 localizedReason = title
