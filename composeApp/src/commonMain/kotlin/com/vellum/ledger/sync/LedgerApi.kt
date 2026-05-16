@@ -181,7 +181,7 @@ class KtorLedgerApi(
             val dtos = transactions.map {
                 TransactionSummaryDto(
                     id = it.id,
-                    amount = it.amount,
+                    amount = it.amount / 100.0,
                     type = it.type.name.uppercase(),
                     category = it.category,
                     note = it.note,

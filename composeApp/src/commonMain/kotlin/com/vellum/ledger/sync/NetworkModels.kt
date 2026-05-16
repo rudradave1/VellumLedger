@@ -46,7 +46,7 @@ data class PushRequest(
 @Serializable
 data class TransactionSummaryDto(
     val id: String,
-    val amount: Long,
+    val amount: Double,
     val type: String,
     val category: String,
     val note: String,
