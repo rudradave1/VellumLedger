@@ -1,5 +1,6 @@
 package com.vellum.ledger.sync
 
+import com.vellum.ledger.data.isDebugBuild
 import com.vellum.ledger.domain.LedgerTransaction
 import io.ktor.client.*
 import io.ktor.client.call.*
@@ -53,7 +54,9 @@ class KtorLedgerApi(
         val deviceId = deviceIdentityManager.getOrCreateDeviceId()
         val authRequest = AuthRequest(deviceId = deviceId)
 
-        println("LedgerApi: Attempting authentication for device $deviceId...")
+        if (isDebugBuild) {
+            println("LedgerApi: Attempting authentication for device $deviceId...")
+        }
         
         try {
             // Try login first
@@ -64,7 +67,9 @@ class KtorLedgerApi(
             
             // If login fails (user doesn't exist), try register
             if (response.status == HttpStatusCode.Unauthorized || response.status == HttpStatusCode.NotFound) {
-                println("LedgerApi: Device not registered, attempting registration...")
+                if (isDebugBuild) {
+                    println("LedgerApi: Device not registered, attempting registration...")
+                }
                 response = client.post("$BASE_URL/auth/register") {
                     contentType(ContentType.Application.Json)
                     setBody(authRequest)
@@ -73,7 +78,9 @@ class KtorLedgerApi(
             
             // If registration fails with Conflict, try one final login
             if (response.status == HttpStatusCode.Conflict) {
-                println("LedgerApi: Registration conflict (409). Attempting final login...")
+                if (isDebugBuild) {
+                    println("LedgerApi: Registration conflict (409). Attempting final login...")
+                }
                 response = client.post("$BASE_URL/auth/login") {
                     contentType(ContentType.Application.Json)
                     setBody(authRequest)
@@ -84,14 +91,20 @@ class KtorLedgerApi(
                 val authResponse = response.body<AuthResponse>()
                 userSession.updateSession(authResponse.token, authResponse.userId)
                 deviceIdentityManager.saveSession(authResponse.token, authResponse.userId)
-                println("LedgerApi: Authentication successful.")
+                if (isDebugBuild) {
+                    println("LedgerApi: Authentication successful.")
+                }
             } else {
                 val error = "Authentication failed: ${response.status}"
-                println("LedgerApi: $error")
+                if (isDebugBuild) {
+                    println("LedgerApi: $error")
+                }
                 throw SyncException(error)
             }
         } catch (e: Exception) {
-            println("LedgerApi: Error during authentication: ${e.message}")
+            if (isDebugBuild) {
+                println("LedgerApi: Error during authentication: ${e.message}")
+            }
             if (e !is SyncException) {
                 throw SyncException("Auth failure: ${e.message}")
             } else throw e
@@ -105,7 +118,9 @@ class KtorLedgerApi(
             val userId = userSession.getUserId()
             val networkTransactions = transactions.map { it.toNetwork(userId) }
             val requestBody = PushRequest(transactions = networkTransactions)
-            println("LedgerApi: Pushing ${transactions.size} transactions.")
+            if (isDebugBuild) {
+                println("LedgerApi: Pushing ${transactions.size} transactions.")
+            }
 
             val response = client.post("$BASE_URL/transactions/push") {
                 contentType(ContentType.Application.Json)
@@ -130,7 +145,9 @@ class KtorLedgerApi(
             runCatching {
                 Json.decodeFromString(PushResponse.serializer(), responseText)
             }.getOrElse {
-                println("LedgerApi: Push response was not JSON, treating as success. Body=$responseText")
+                if (isDebugBuild) {
+                    println("LedgerApi: Push response was not JSON, treating as success. Body=$responseText")
+                }
                 PushResponse(success = true)
             }
         }
@@ -168,7 +185,9 @@ class KtorLedgerApi(
             }
             val requestBody = SummaryRequest(transactions = dtos)
             
-            println("LedgerApi: requestMonthlySummary: Sending ${transactions.size} transactions.")
+            if (isDebugBuild) {
+                println("LedgerApi: requestMonthlySummary: Sending ${transactions.size} transactions.")
+            }
 
             val response = client.post("$BASE_URL/insights/monthly") {
                 contentType(ContentType.Application.Json)
@@ -194,13 +213,17 @@ class KtorLedgerApi(
 
     private suspend fun <T> executeWithAuthRetry(block: suspend () -> T): T {
         if (!userSession.isAuthenticated) {
-            println("LedgerApi: Session not authenticated. Initializing...")
+            if (isDebugBuild) {
+                println("LedgerApi: Session not authenticated. Initializing...")
+            }
             authenticate()
         }
         return try {
             block()
         } catch (e: AuthException) {
-            println("LedgerApi: Unauthorized. Retrying with new token...")
+            if (isDebugBuild) {
+                println("LedgerApi: Unauthorized. Retrying with new token...")
+            }
             authenticate()
             try {
                 block()
@@ -234,15 +257,13 @@ private fun createDefaultHttpClient() = HttpClient {
             prettyPrint = true
         })
     }
-    if (com.vellum.ledger.data.isDebugBuild) {
-        install(Logging) {
-            logger = object : Logger {
-                override fun log(message: String) {
-                    println("Ktor: $message")
-                }
+    install(Logging) {
+        logger = object : Logger {
+            override fun log(message: String) {
+                println("Ktor: $message")
             }
-            level = LogLevel.ALL
         }
+        level = if (isDebugBuild) LogLevel.ALL else LogLevel.NONE
     }
 }
 
