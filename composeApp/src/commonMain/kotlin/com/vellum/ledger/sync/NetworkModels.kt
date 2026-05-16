@@ -73,7 +73,8 @@ data class PushResponse(
 
 @Serializable
 data class AuthRequest(
-    val deviceId: String,
+    val email: String,
+    val password: String,
 )
 
 @Serializable

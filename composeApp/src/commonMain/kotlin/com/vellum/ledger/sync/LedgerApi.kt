@@ -52,10 +52,15 @@ class KtorLedgerApi(
 
     private suspend fun authenticate(): Unit = authMutex.withLock {
         val deviceId = deviceIdentityManager.getOrCreateDeviceId()
-        val authRequest = AuthRequest(deviceId = deviceId)
+        // Format deviceId: remove hyphens for the email local part to satisfy backend validation
+        val sanitizedId = deviceId.replace("-", "")
+        val authRequest = AuthRequest(
+            email = "$sanitizedId@ledger.com",
+            password = "pwd_$sanitizedId" // Ensure password is long enough and contains stable ID
+        )
 
         if (isDebugBuild) {
-            println("LedgerApi: Attempting authentication for device $deviceId...")
+            println("LedgerApi: Attempting authentication for device $deviceId (as ${authRequest.email})...")
         }
         
         try {
