@@ -19,6 +19,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -41,6 +42,7 @@ fun SettingsScreen(
     onDailyBudgetChange: (Long) -> Unit = {},
     onCurrencyChange: (String) -> Unit
 ) {
+    val uriHandler = LocalUriHandler.current
     var showCurrencyDialog by rememberSaveable { mutableStateOf(false) }
     var showAboutDialog by rememberSaveable { mutableStateOf(false) }
     var showClearConfirm by rememberSaveable { mutableStateOf(false) }
@@ -189,6 +191,10 @@ fun SettingsScreen(
                         SettingsItem(title = "App Version", value = com.vellum.ledger.data.appVersion)
                         HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.outline.copy(alpha = 0.05f))
                         SettingsItem(title = "About VellumLedger", showArrow = true, onClick = { showAboutDialog = true })
+                        HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.outline.copy(alpha = 0.05f))
+                        SettingsItem(title = "Privacy Policy", showArrow = true, onClick = { uriHandler.openUri("https://rudradave1.github.io/vellumledger-privacy/") })
+                        HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.outline.copy(alpha = 0.05f))
+                        SettingsItem(title = "Terms & Conditions", showArrow = true, onClick = { uriHandler.openUri("https://rudradave1.github.io/vellumledger-privacy/terms.html") })
                     }
                 }
             }
