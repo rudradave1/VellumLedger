@@ -41,16 +41,14 @@ data class SyncResult(
 
 class KtorLedgerApi(
     private val deviceIdentityManager: DeviceIdentityManager,
+    private val remoteConfig: RemoteConfig,
     private val client: HttpClient = createDefaultHttpClient(),
     private val userSession: UserSession
 ) : LedgerApi {
     private val authMutex = Mutex()
     
-    companion object {
-        private const val BASE_URL = "https://vellum-ledger-api-production.up.railway.app"
-    }
-
     private suspend fun authenticate(): Unit = authMutex.withLock {
+        val baseUrl = remoteConfig.getApiUrl()
         val deviceId = deviceIdentityManager.getOrCreateDeviceId()
         // Format deviceId: remove hyphens for the email local part to satisfy backend validation
         val sanitizedId = deviceId.replace("-", "")
@@ -65,7 +63,7 @@ class KtorLedgerApi(
         
         try {
             // Try login first
-            var response = client.post("$BASE_URL/auth/login") {
+            var response = client.post("$baseUrl/auth/login") {
                 contentType(ContentType.Application.Json)
                 setBody(authRequest)
             }
@@ -75,7 +73,7 @@ class KtorLedgerApi(
                 if (isDebugBuild) {
                     println("LedgerApi: Device not registered, attempting registration...")
                 }
-                response = client.post("$BASE_URL/auth/register") {
+                response = client.post("$baseUrl/auth/register") {
                     contentType(ContentType.Application.Json)
                     setBody(authRequest)
                 }
@@ -86,7 +84,7 @@ class KtorLedgerApi(
                 if (isDebugBuild) {
                     println("LedgerApi: Registration conflict (409). Attempting final login...")
                 }
-                response = client.post("$BASE_URL/auth/login") {
+                response = client.post("$baseUrl/auth/login") {
                     contentType(ContentType.Application.Json)
                     setBody(authRequest)
                 }
@@ -120,6 +118,7 @@ class KtorLedgerApi(
         if (transactions.isEmpty()) return PushResponse()
         
         return executeWithAuthRetry {
+            val baseUrl = remoteConfig.getApiUrl()
             val userId = userSession.getUserId()
             val networkTransactions = transactions.map { it.toNetwork(userId) }
             val requestBody = PushRequest(transactions = networkTransactions)
@@ -127,7 +126,7 @@ class KtorLedgerApi(
                 println("LedgerApi: Pushing ${transactions.size} transactions.")
             }
 
-            val response = client.post("$BASE_URL/transactions/push") {
+            val response = client.post("$baseUrl/transactions/push") {
                 contentType(ContentType.Application.Json)
                 header(HttpHeaders.Authorization, "Bearer ${userSession.getToken()}")
                 setBody(requestBody)
@@ -160,7 +159,8 @@ class KtorLedgerApi(
 
     override suspend fun pullBackupTransactions(): PullResponse {
         return executeWithAuthRetry {
-            val response = client.get("$BASE_URL/transactions/pull") {
+            val baseUrl = remoteConfig.getApiUrl()
+            val response = client.get("$baseUrl/transactions/pull") {
                 header(HttpHeaders.Authorization, "Bearer ${userSession.getToken()}")
             }
 
@@ -178,6 +178,7 @@ class KtorLedgerApi(
 
     override suspend fun requestMonthlySummary(transactions: List<LedgerTransaction>): String {
         return executeWithAuthRetry {
+            val baseUrl = remoteConfig.getApiUrl()
             val dtos = transactions.map {
                 TransactionSummaryDto(
                     id = it.id,
@@ -194,7 +195,7 @@ class KtorLedgerApi(
                 println("LedgerApi: requestMonthlySummary: Sending ${transactions.size} transactions.")
             }
 
-            val response = client.post("$BASE_URL/insights/monthly") {
+            val response = client.post("$baseUrl/insights/monthly") {
                 contentType(ContentType.Application.Json)
                 header(HttpHeaders.Authorization, "Bearer ${userSession.getToken()}")
                 setBody(requestBody)
@@ -254,7 +255,7 @@ class SyncException(message: String) : Exception(message)
 /**
  * Factory function for the default Ktor HttpClient used in synchronization.
  */
-private fun createDefaultHttpClient() = HttpClient {
+internal fun createDefaultHttpClient() = HttpClient {
     install(ContentNegotiation) {
         json(Json {
             ignoreUnknownKeys = true

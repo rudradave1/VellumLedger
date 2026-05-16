@@ -6,6 +6,7 @@ import com.vellum.ledger.domain.*
 import com.vellum.ledger.repository.*
 import com.vellum.ledger.domain.usecase.*
 import com.vellum.ledger.sync.UserSession
+import com.vellum.ledger.data.isNetworkAvailable
 import com.vellum.ledger.ui.mapper.UiMapper
 import com.vellum.ledger.ui.model.*
 import com.vellum.ledger.ui.util.GlobalErrorHandler
@@ -82,7 +83,7 @@ class LedgerViewModel(
             try {
                 if (amountCents <= 0) return@launch
                 transactionRepository.addTransaction(amountCents, type, category, note, timestamp, currency.value)
-                _saveEvents.tryEmit("Transaction saved locally")
+                _saveEvents.tryEmit("Transaction saved")
                 if (autoSync.value) performSync()
             } catch (e: Exception) {
                 GlobalErrorHandler.handleError(e)
@@ -110,6 +111,7 @@ class LedgerViewModel(
     }
 
     private suspend fun performSync() {
+        if (!isNetworkAvailable) return
         if (_isSyncing.value) return
         try {
             _isSyncing.value = true

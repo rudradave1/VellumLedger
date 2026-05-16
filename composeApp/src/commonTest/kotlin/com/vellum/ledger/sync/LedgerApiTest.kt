@@ -38,12 +38,20 @@ class LedgerApiTest {
 
     @Test
     fun testPushSuccess() = runTest {
-        val mockEngine = MockEngine { _ ->
-            respond(
-                content = "{\"success\":true}",
-                status = HttpStatusCode.OK,
-                headers = headersOf(HttpHeaders.ContentType, ContentType.Application.Json.toString())
-            )
+        val mockEngine = MockEngine { request ->
+            if (request.url.toString().contains("config.json")) {
+                respond(
+                    content = "{\"api_url\":\"https://mock-api.com\"}",
+                    status = HttpStatusCode.OK,
+                    headers = headersOf(HttpHeaders.ContentType, ContentType.Application.Json.toString())
+                )
+            } else {
+                respond(
+                    content = "{\"success\":true}",
+                    status = HttpStatusCode.OK,
+                    headers = headersOf(HttpHeaders.ContentType, ContentType.Application.Json.toString())
+                )
+            }
         }
 
         val client = HttpClient(mockEngine) {
@@ -57,12 +65,14 @@ class LedgerApiTest {
 
         val deviceIdentityManager = DeviceIdentityManager(InMemoryPreferencesDataStore(), FakeSecureStorage())
         val userSession = FakeUserSession(token = "token-123", userId = "user-123")
-        val api = KtorLedgerApi(deviceIdentityManager, client, userSession)
+        val remoteConfig = RemoteConfig(client)
+        val api = KtorLedgerApi(deviceIdentityManager, remoteConfig, client, userSession)
         
         api.pushBatch(listOf(testTransaction))
         
-        assertEquals(1, mockEngine.requestHistory.size)
-        val request = mockEngine.requestHistory[0]
+        // requestHistory[0] is config.json, requestHistory[1] is transactions/push
+        assertEquals(2, mockEngine.requestHistory.size)
+        val request = mockEngine.requestHistory[1]
         assertEquals(HttpMethod.Post, request.method)
         assertTrue(request.url.toString().contains("/transactions/push"))
         assertEquals("Bearer ${userSession.getToken()}", request.headers[HttpHeaders.Authorization])
@@ -72,6 +82,11 @@ class LedgerApiTest {
     fun testPushFailure() = runTest {
         val mockEngine = MockEngine { request ->
             when {
+                request.url.toString().contains("config.json") -> respond(
+                    content = "{\"api_url\":\"https://mock-api.com\"}",
+                    status = HttpStatusCode.OK,
+                    headers = headersOf(HttpHeaders.ContentType, ContentType.Application.Json.toString())
+                )
                 request.url.encodedPath.endsWith("/transactions/push") -> respond(
                     content = "Unauthorized",
                     status = HttpStatusCode.Unauthorized
@@ -99,6 +114,7 @@ class LedgerApiTest {
 
         val api = KtorLedgerApi(
             DeviceIdentityManager(InMemoryPreferencesDataStore(), FakeSecureStorage()),
+            RemoteConfig(client),
             client,
             FakeUserSession(token = "token-123", userId = "user-123")
         )

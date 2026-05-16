@@ -10,6 +10,8 @@ expect val appVersion: String
 
 expect val isDebugBuild: Boolean
 
+expect val isNetworkAvailable: Boolean
+
 expect fun shareText(text: String, title: String)
 
 expect fun exportCsvFile(csvContent: String, fileName: String)

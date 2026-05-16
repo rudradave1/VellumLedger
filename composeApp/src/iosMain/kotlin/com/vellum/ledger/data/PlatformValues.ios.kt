@@ -23,6 +23,8 @@ actual val appVersion: String = "1.2.0-ios"
 
 actual val isDebugBuild: Boolean = false
 
+actual val isNetworkAvailable: Boolean = true // Simplified for iOS
+
 actual fun shareText(text: String, title: String) {
     val window = UIApplication.sharedApplication.keyWindow
     val rootViewController = window?.rootViewController

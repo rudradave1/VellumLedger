@@ -16,11 +16,13 @@ import com.vellum.ledger.ui.viewmodel.LedgerViewModel
 
 val appModule = module {
     single { createDataStore() }
+    single { createDefaultHttpClient() }
     single { DeviceIdentityManager(get()) }
+    single { RemoteConfig(get()) }
     single<UserSession> { 
         SimpleUserSession(get())
     }
-    single<LedgerApi> { KtorLedgerApi(get(), userSession = get()) }
+    single<LedgerApi> { KtorLedgerApi(get(), remoteConfig = get(), userSession = get()) }
     single { createLedgerDatabase() }
     single { ExchangeRateProvider(get()) }
     single<StringProvider> { CommonStringProvider() }

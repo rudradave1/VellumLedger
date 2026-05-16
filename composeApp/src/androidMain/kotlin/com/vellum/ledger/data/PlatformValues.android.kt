@@ -18,6 +18,8 @@ import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
 import com.vellum.ledger.sync.SecureStorage
 import android.content.Context
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
 import java.security.SecureRandom
 
 actual fun currentTimeMillis(): Long = System.currentTimeMillis()
@@ -27,6 +29,20 @@ actual fun newLedgerId(): String = UUID.randomUUID().toString()
 actual val appVersion: String = BuildConfig.VERSION_NAME
 
 actual val isDebugBuild: Boolean = BuildConfig.DEBUG
+
+actual val isNetworkAvailable: Boolean
+    get() {
+        val connectivityManager = AndroidLedgerContext.appContext.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+        val network = connectivityManager.activeNetwork ?: return false
+        val activeNetwork = connectivityManager.getNetworkCapabilities(network) ?: return false
+        return when {
+            activeNetwork.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) -> true
+            activeNetwork.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) -> true
+            activeNetwork.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET) -> true
+            activeNetwork.hasTransport(NetworkCapabilities.TRANSPORT_BLUETOOTH) -> true
+            else -> false
+        }
+    }
 
 actual fun shareText(text: String, title: String) {
     val intent = Intent(Intent.ACTION_SEND).apply {
