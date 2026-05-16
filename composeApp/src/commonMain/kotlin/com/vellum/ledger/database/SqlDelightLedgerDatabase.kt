@@ -114,15 +114,15 @@ internal class SqlDelightLedgerDatabase(
             .map { rows ->
                 val map = rows.associate { it.key to it.value_ }
                 LedgerSettings(
-                    autoSync = map["auto_sync"]?.toBooleanStrictOrNull() ?: true,
-                    isDarkMode = map["dark_mode"]?.takeIf { it.isNotBlank() }?.toBooleanStrictOrNull(),
-                    isBiometricEnabled = map["biometric_enabled"]?.toBooleanStrictOrNull() ?: false,
-                    lastSyncAtMillis = map["last_sync_at_millis"]?.toLongOrNull(),
-                    currency = map["currency"] ?: "USD ($)",
-                    dailyBudget = map["daily_budget"]?.toLongOrNull() ?: 0.toLong(),
-                    monthlySummary = map["monthly_summary"],
-                    summaryMonth = map["summary_month"],
-                    transactionCountAtCacheTime = map["tx_count_at_cache_time"]?.toIntOrNull() ?: 0,
+                    autoSync = map[LedgerSettings.KEY_AUTO_SYNC]?.toBooleanStrictOrNull() ?: true,
+                    isDarkMode = map[LedgerSettings.KEY_DARK_MODE]?.takeIf { it.isNotBlank() }?.toBooleanStrictOrNull(),
+                    isBiometricEnabled = map[LedgerSettings.KEY_BIOMETRIC_ENABLED]?.toBooleanStrictOrNull() ?: false,
+                    lastSyncAtMillis = map[LedgerSettings.KEY_LAST_SYNC_AT]?.toLongOrNull(),
+                    currency = map[LedgerSettings.KEY_CURRENCY] ?: "USD ($)",
+                    dailyBudget = map[LedgerSettings.KEY_DAILY_BUDGET]?.toLongOrNull() ?: 0.toLong(),
+                    monthlySummary = map[LedgerSettings.KEY_MONTHLY_SUMMARY],
+                    summaryMonth = map[LedgerSettings.KEY_SUMMARY_MONTH],
+                    transactionCountAtCacheTime = map[LedgerSettings.KEY_TX_COUNT_AT_CACHE]?.toIntOrNull() ?: 0,
                 )
             }
             .catch { e ->
@@ -260,15 +260,15 @@ internal class SqlDelightLedgerDatabase(
         val next = transform(current)
         withContext(Dispatchers.Default) {
             queries.transaction {
-                queries.upsertSetting("auto_sync", next.autoSync.toString())
-                queries.upsertSetting("dark_mode", next.isDarkMode?.toString() ?: "")
-                queries.upsertSetting("biometric_enabled", next.isBiometricEnabled.toString())
-                queries.upsertSetting("last_sync_at_millis", next.lastSyncAtMillis?.toString() ?: "")
-                queries.upsertSetting("currency", next.currency)
-                queries.upsertSetting("daily_budget", next.dailyBudget.toString())
-                queries.upsertSetting("monthly_summary", next.monthlySummary ?: "")
-                queries.upsertSetting("summary_month", next.summaryMonth ?: "")
-                queries.upsertSetting("tx_count_at_cache_time", next.transactionCountAtCacheTime.toString())
+                queries.upsertSetting(LedgerSettings.KEY_AUTO_SYNC, next.autoSync.toString())
+                queries.upsertSetting(LedgerSettings.KEY_DARK_MODE, next.isDarkMode?.toString() ?: "")
+                queries.upsertSetting(LedgerSettings.KEY_BIOMETRIC_ENABLED, next.isBiometricEnabled.toString())
+                queries.upsertSetting(LedgerSettings.KEY_LAST_SYNC_AT, next.lastSyncAtMillis?.toString() ?: "")
+                queries.upsertSetting(LedgerSettings.KEY_CURRENCY, next.currency)
+                queries.upsertSetting(LedgerSettings.KEY_DAILY_BUDGET, next.dailyBudget.toString())
+                queries.upsertSetting(LedgerSettings.KEY_MONTHLY_SUMMARY, next.monthlySummary ?: "")
+                queries.upsertSetting(LedgerSettings.KEY_SUMMARY_MONTH, next.summaryMonth ?: "")
+                queries.upsertSetting(LedgerSettings.KEY_TX_COUNT_AT_CACHE, next.transactionCountAtCacheTime.toString())
             }
         }
     }
@@ -295,7 +295,10 @@ internal class SqlDelightLedgerDatabase(
 
     override suspend fun deleteTransaction(transactionId: String) {
         withContext(Dispatchers.Default) {
-            queries.deleteTransaction(transactionId)
+            queries.transaction {
+                queries.deleteTransaction(transactionId)
+                queries.deleteQueueItemsByEntityId(transactionId)
+            }
         }
     }
 

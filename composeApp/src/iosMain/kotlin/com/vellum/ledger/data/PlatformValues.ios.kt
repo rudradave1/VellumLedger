@@ -6,17 +6,22 @@ import platform.UIKit.UIApplication
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
+import com.vellum.ledger.sync.SecureStorage
 import okio.Path.Companion.toPath
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.BetaInteropApi
 import kotlinx.cinterop.addressOf
 import kotlinx.cinterop.usePinned
+import kotlinx.cinterop.refTo
+import platform.Security.*
 
 actual fun currentTimeMillis(): Long = (NSDate().timeIntervalSince1970 * 1_000).toLong()
 
 actual fun newLedgerId(): String = NSUUID().UUIDString()
 
 actual val appVersion: String = "1.2.0-ios"
+
+actual val isDebugBuild: Boolean = false
 
 actual fun shareText(text: String, title: String) {
     val window = UIApplication.sharedApplication.keyWindow
@@ -68,3 +73,24 @@ actual fun createDataStore(): DataStore<Preferences> = PreferenceDataStoreFactor
         (requireNotNull(documentDirectory).path + "/ledger.preferences_pb").toPath()
     }
 )
+
+actual fun createSecureStorage(): SecureStorage = IosSecureStorage()
+
+private class IosSecureStorage : SecureStorage {
+    override fun get(key: String): String? = NSUserDefaults.standardUserDefaults.stringForKey(key)
+    override fun set(key: String, value: String?) {
+        if (value == null) {
+            NSUserDefaults.standardUserDefaults.removeObjectForKey(key)
+        } else {
+            NSUserDefaults.standardUserDefaults.setObject(value, forKey = key)
+        }
+    }
+}
+
+@OptIn(ExperimentalForeignApi::class)
+actual fun getSecureRandomBytes(size: Int): ByteArray {
+    return ByteArray(size).apply {
+        val status = SecRandomCopyBytes(kSecRandomDefault, size.toULong(), this.refTo(0))
+        if (status != 0) throw IllegalStateException("Failed to generate secure random bytes")
+    }
+}

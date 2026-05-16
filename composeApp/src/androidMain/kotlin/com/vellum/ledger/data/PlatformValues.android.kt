@@ -14,12 +14,19 @@ import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import java.io.File
 import java.nio.charset.Charset
+import androidx.security.crypto.EncryptedSharedPreferences
+import androidx.security.crypto.MasterKey
+import com.vellum.ledger.sync.SecureStorage
+import android.content.Context
+import java.security.SecureRandom
 
 actual fun currentTimeMillis(): Long = System.currentTimeMillis()
 
 actual fun newLedgerId(): String = UUID.randomUUID().toString()
 
 actual val appVersion: String = BuildConfig.VERSION_NAME
+
+actual val isDebugBuild: Boolean = BuildConfig.DEBUG
 
 actual fun shareText(text: String, title: String) {
     val intent = Intent(Intent.ACTION_SEND).apply {
@@ -87,3 +94,30 @@ actual fun createDataStore(): DataStore<Preferences> = PreferenceDataStoreFactor
         File(AndroidLedgerContext.appContext.filesDir, "ledger.preferences_pb")
     }
 )
+
+actual fun createSecureStorage(): SecureStorage = AndroidSecureStorage(AndroidLedgerContext.appContext)
+
+private class AndroidSecureStorage(context: Context) : SecureStorage {
+    private val masterKey = MasterKey.Builder(context)
+        .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
+        .build()
+
+    private val sharedPrefs = EncryptedSharedPreferences.create(
+        context,
+        "secure_ledger_prefs",
+        masterKey,
+        EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+        EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
+    )
+
+    override fun get(key: String): String? = sharedPrefs.getString(key, null)
+    override fun set(key: String, value: String?) {
+        sharedPrefs.edit().putString(key, value).apply()
+    }
+}
+
+actual fun getSecureRandomBytes(size: Int): ByteArray {
+    val bytes = ByteArray(size)
+    SecureRandom().nextBytes(bytes)
+    return bytes
+}

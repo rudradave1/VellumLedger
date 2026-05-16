@@ -32,6 +32,12 @@ interface LedgerApi {
     suspend fun requestMonthlySummary(transactions: List<LedgerTransaction>): String
 }
 
+data class SyncResult(
+    val attempted: Int = 0,
+    val synced: Int = 0,
+    val failed: Int = 0,
+)
+
 class KtorLedgerApi(
     private val deviceIdentityManager: DeviceIdentityManager,
     private val client: HttpClient = createDefaultHttpClient(),
@@ -228,30 +234,17 @@ private fun createDefaultHttpClient() = HttpClient {
             prettyPrint = true
         })
     }
-    install(Logging) {
-        logger = object : Logger {
-            override fun log(message: String) {
-                println("Ktor: $message")
+    if (com.vellum.ledger.data.isDebugBuild) {
+        install(Logging) {
+            logger = object : Logger {
+                override fun log(message: String) {
+                    println("Ktor: $message")
+                }
             }
+            level = LogLevel.ALL
         }
-        level = LogLevel.ALL
     }
 }
 
 // Compatibility alias
 // typealias LedgerApiImpl = KtorLedgerApi
-
-class FakeLedgerApi(private val randomFail: Boolean = false) : LedgerApi {
-    override suspend fun pushBatch(transactions: List<LedgerTransaction>): PushResponse {
-        if (randomFail && (0..10).random() > 7) throw SyncException("Random failure")
-        return PushResponse(acknowledgements = transactions.map { SyncAcknowledgement(it.id, 1) })
-    }
-
-    override suspend fun pullBackupTransactions(): PullResponse {
-        return PullResponse()
-    }
-
-    override suspend fun requestMonthlySummary(transactions: List<LedgerTransaction>): String {
-        return "This is a fake AI insight summary for your transactions."
-    }
-}

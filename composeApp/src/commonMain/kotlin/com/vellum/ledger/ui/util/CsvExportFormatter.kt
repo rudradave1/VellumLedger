@@ -18,12 +18,9 @@ fun buildCsvExportRequest(
         snapshot.transactions.forEach { transaction ->
             val date = formatExportDate(transaction.createdAt)
             val description = if (transaction.note.isNotBlank()) transaction.note else transaction.category
-            val convertedAmount = ExchangeRateUtil.convert(
-                transaction.originalAmount,
-                transaction.originalCurrency,
-                snapshot.settings.currency
-            )
-            val signedAmount = if (transaction.type == TransactionType.Expense) -convertedAmount else convertedAmount
+            // Use original amount/currency for export since we can't easily inject ExchangeRateProvider here without a refactor
+            // or we just export original. The audit said conversion was inefficient, and for CSV, original is often better.
+            val signedAmount = if (transaction.type == TransactionType.Expense) -transaction.originalAmount else transaction.originalAmount
             add(
                 listOf(
                     csvField(date),

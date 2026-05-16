@@ -1,12 +1,9 @@
 package com.vellum.ledger.domain
 
 import kotlinx.serialization.Serializable
-
-@Serializable
-enum class TransactionType {
-    Income,
-    Expense,
-}
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.Color
+import com.vellum.ledger.data.currentTimeMillis
 
 @Serializable
 enum class SyncStatus {
@@ -21,12 +18,18 @@ enum class QueueStatus {
     Done,
 }
 
+enum class TransactionType {
+    Income,
+    Expense,
+}
+
 enum class CardType {
     Visa,
     MasterCard,
     Amex,
 }
 
+@Serializable
 data class LedgerCard(
     val id: String,
     val cardName: String,
@@ -37,6 +40,7 @@ data class LedgerCard(
     val hexColor: String,
 )
 
+@Serializable
 data class LedgerSettings(
     val autoSync: Boolean = true,
     val isDarkMode: Boolean? = null,
@@ -47,7 +51,19 @@ data class LedgerSettings(
     val monthlySummary: String? = null,
     val summaryMonth: String? = null, // Format: YYYY-MM
     val transactionCountAtCacheTime: Int = 0,
-)
+) {
+    companion object {
+        const val KEY_AUTO_SYNC = "auto_sync"
+        const val KEY_DARK_MODE = "dark_mode"
+        const val KEY_BIOMETRIC_ENABLED = "biometric_enabled"
+        const val KEY_LAST_SYNC_AT = "last_sync_at_millis"
+        const val KEY_CURRENCY = "currency"
+        const val KEY_DAILY_BUDGET = "daily_budget"
+        const val KEY_MONTHLY_SUMMARY = "monthly_summary"
+        const val KEY_SUMMARY_MONTH = "summary_month"
+        const val KEY_TX_COUNT_AT_CACHE = "tx_count_at_cache_time"
+    }
+}
 
 @Serializable
 data class LedgerTransaction(

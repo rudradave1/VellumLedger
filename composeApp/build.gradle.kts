@@ -34,9 +34,11 @@ kotlin {
             implementation(libs.androidx.core.ktx)
             implementation(libs.androidx.biometric)
             implementation(libs.androidx.work.runtime.ktx)
+            implementation(libs.androidx.security.crypto)
             implementation(libs.sqldelight.android.driver)
             implementation(libs.sqlcipher.android)
             implementation(libs.ktor.client.okhttp)
+            implementation(libs.koin.android)
         }
         commonMain.dependencies {
             implementation(libs.compose.runtime)
@@ -56,8 +58,8 @@ kotlin {
             implementation(libs.ktor.client.content.negotiation)
             implementation(libs.ktor.serialization.kotlinx.json)
             implementation(libs.ktor.client.logging)
-
-
+            implementation(libs.koin.core)
+            implementation(libs.koin.compose)
         }
         iosMain.dependencies {
             implementation(libs.sqldelight.native.driver)

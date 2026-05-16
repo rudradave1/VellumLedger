@@ -1,22 +1,16 @@
 package com.vellum.ledger
 
 import com.vellum.ledger.database.LedgerDatabase
-import com.vellum.ledger.domain.LedgerCard
-import com.vellum.ledger.domain.LedgerSnapshot
-import com.vellum.ledger.domain.LedgerSettings
-import com.vellum.ledger.domain.LedgerTransaction
-import com.vellum.ledger.domain.QueueStatus
-import com.vellum.ledger.domain.SyncQueueItem
-import com.vellum.ledger.domain.SyncStatus
-import com.vellum.ledger.domain.TransactionType
-import com.vellum.ledger.sync.FakeLedgerApi
-import com.vellum.ledger.sync.SyncWorker
+import com.vellum.ledger.domain.*
+import com.vellum.ledger.sync.*
+import com.vellum.ledger.domain.usecase.SyncTransactionsUseCase
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.runBlocking
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 
 class ComposeAppCommonTest {
 
@@ -35,7 +29,7 @@ class ComposeAppCommonTest {
     }
 
     @Test
-    fun syncWorkerMarksPendingTransactionSyncedAndQueueDone() = runBlocking {
+    fun syncUseCaseMarksPendingTransactionSyncedAndQueueDone() = runBlocking {
         val database = FakeLedgerDatabase()
         val transaction = transaction(syncStatus = SyncStatus.Pending)
         val queueItem = SyncQueueItem(
@@ -47,16 +41,39 @@ class ComposeAppCommonTest {
         )
         database.insertTransactionWithQueue(transaction, queueItem)
 
-        val result = SyncWorker(
+        val result = SyncTransactionsUseCase(
             database = database,
             api = FakeLedgerApi(randomFail = false),
-        ).processQueue()
+        )()
 
         assertEquals(1, result.attempted)
         assertEquals(1, result.synced)
         assertEquals(0, result.failed)
         assertEquals(SyncStatus.Synced, database.state.value.transactions.single().syncStatus)
         assertEquals(QueueStatus.Done, database.state.value.queueItems.single().status)
+    }
+
+    @Test
+    fun deleteTransactionRemovesOrphanedQueueItems() = runBlocking {
+        val database = FakeLedgerDatabase()
+        val txId = "tx-123"
+        val transaction = transaction(syncStatus = SyncStatus.Pending).copy(id = txId)
+        val queueItem = SyncQueueItem(
+            id = "q-1",
+            entityId = txId,
+            operationType = "PUSH",
+            createdAt = 1L,
+            status = QueueStatus.Pending
+        )
+        
+        database.insertTransactionWithQueue(transaction, queueItem)
+        assertEquals(1, database.state.value.transactions.size)
+        assertEquals(1, database.state.value.queueItems.size)
+        
+        database.deleteTransaction(txId)
+        
+        assertTrue(database.state.value.transactions.isEmpty())
+        assertTrue(database.state.value.queueItems.isEmpty(), "Queue item should be deleted along with transaction")
     }
 }
 
@@ -164,7 +181,8 @@ private class FakeLedgerDatabase : LedgerDatabase {
 
     override suspend fun deleteTransaction(transactionId: String) {
         mutableState.value = mutableState.value.copy(
-            transactions = mutableState.value.transactions.filter { it.id != transactionId }
+            transactions = mutableState.value.transactions.filter { it.id != transactionId },
+            queueItems = mutableState.value.queueItems.filter { it.entityId != transactionId }
         )
     }
 

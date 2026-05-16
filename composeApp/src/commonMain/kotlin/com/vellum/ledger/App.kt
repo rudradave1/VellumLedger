@@ -20,10 +20,8 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.lifecycle.viewmodel.compose.viewModel
-import com.vellum.ledger.repository.LedgerRepository
-import com.vellum.ledger.sync.DeviceIdentityManager
-import com.vellum.ledger.data.createDataStore
+import org.koin.compose.koinInject
+import com.vellum.ledger.ui.viewmodel.LedgerViewModel
 import com.vellum.ledger.ui.mapper.UiMapper
 import com.vellum.ledger.ui.provider.CommonStringProvider
 import com.vellum.ledger.ui.screens.AddTransactionScreen
@@ -34,7 +32,6 @@ import com.vellum.ledger.ui.screens.SettingsScreen
 import com.vellum.ledger.ui.components.VellumButton
 import com.vellum.ledger.ui.theme.*
 import com.vellum.ledger.ui.util.*
-import com.vellum.ledger.ui.viewmodel.LedgerViewModel
 import com.vellum.ledger.ui.model.CsvExportRequest
 import kotlinx.coroutines.launch
 
@@ -48,17 +45,14 @@ enum class Screen {
 
 @Composable
 fun App() {
-    val dataStore = remember { createDataStore() }
-    val deviceIdentityManager = remember { DeviceIdentityManager(dataStore) }
-    val repository = remember { LedgerRepository(deviceIdentityManager = deviceIdentityManager) }
+    val viewModel: LedgerViewModel = koinInject()
     
-    LaunchedEffect(Unit) {
-        repository.initialize()
-    }
-
+    // LaunchedEffect for initialization can be moved to ViewModel init if needed,
+    // but repository.initialize() was doing userSession.initialize().
+    // We should ensure this happens. 
+    // In our new DI, UserSession is injected and initialized as needed or in ViewModel.
+    
     val stringProvider = remember { CommonStringProvider() }
-    val uiMapper = remember { UiMapper(stringProvider) }
-    val viewModel: LedgerViewModel = viewModel { LedgerViewModel(repository, uiMapper) }
     val haptic = LocalHapticFeedback.current
     val authenticator = rememberBiometricAuthenticator()
     

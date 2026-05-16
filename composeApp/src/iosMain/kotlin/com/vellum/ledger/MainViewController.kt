@@ -1,5 +1,13 @@
 package com.vellum.ledger
 
 import androidx.compose.ui.window.ComposeUIViewController
+import com.vellum.ledger.di.initKoin
 
-fun MainViewController() = ComposeUIViewController { App() }
+private val koinInitialized = lazy {
+    initKoin()
+}
+
+fun MainViewController() = ComposeUIViewController { 
+    val _unused = koinInitialized.value
+    App() 
+}

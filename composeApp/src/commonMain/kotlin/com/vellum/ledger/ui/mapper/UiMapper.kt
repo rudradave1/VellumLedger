@@ -7,17 +7,24 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import com.vellum.ledger.domain.*
 import com.vellum.ledger.ui.model.*
 import com.vellum.ledger.ui.provider.StringProvider
-import com.vellum.ledger.ui.theme.*
+import com.vellum.ledger.ui.theme.ExpenseColor
+import com.vellum.ledger.ui.theme.IncomeColor
+import com.vellum.ledger.ui.util.ExchangeRateProvider
 import com.vellum.ledger.ui.util.parseHexColor
-import kotlinx.datetime.*
+import kotlinx.datetime.Instant
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.toLocalDateTime
 
-class UiMapper(private val stringProvider: StringProvider) {
+class UiMapper(
+    private val stringProvider: StringProvider,
+    private val exchangeRateProvider: ExchangeRateProvider
+) {
 
     fun mapToTransactionUi(transaction: LedgerTransaction, currency: String): TransactionUiModel {
         val (icon, _) = categoryIconAndTint(transaction.category)
         val color = if (transaction.type == TransactionType.Income) IncomeColor else ExpenseColor
         
-        val convertedAmount = com.vellum.ledger.ui.util.ExchangeRateUtil.convert(
+        val convertedAmount = exchangeRateProvider.convert(
             transaction.originalAmount,
             transaction.originalCurrency,
             currency
@@ -66,7 +73,7 @@ class UiMapper(private val stringProvider: StringProvider) {
             dailyBudgetFormatted = stringProvider.formatMoney(settings.dailyBudget, settings.currency),
             monthlySummary = settings.monthlySummary,
             isSummaryLoading = isSummaryLoading,
-            areRatesAvailable = com.vellum.ledger.ui.util.ExchangeRateUtil.isAvailable()
+            areRatesAvailable = exchangeRateProvider.isAvailable()
         )
     }
 

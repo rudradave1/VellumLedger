@@ -9,7 +9,6 @@ import io.ktor.serialization.kotlinx.json.*
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import com.vellum.ledger.database.LedgerDatabase
-import com.vellum.ledger.data.currentTimeMillis
 
 @Serializable
 private data class ExchangeRatesResponse(
@@ -18,8 +17,7 @@ private data class ExchangeRatesResponse(
     val rates: Map<String, Double>
 )
 
-object ExchangeRateUtil {
-    private var database: LedgerDatabase? = null
+class ExchangeRateProvider(private val database: LedgerDatabase) {
 
     // Default hardcoded fallback rates if no cache exists
     private var rates = mapOf(
@@ -45,10 +43,6 @@ object ExchangeRateUtil {
         }
     }
 
-    fun initialize(db: LedgerDatabase) {
-        database = db
-    }
-
     /**
      * Fetches live exchange rates from a public API.
      */
@@ -57,13 +51,13 @@ object ExchangeRateUtil {
             val response: ExchangeRatesResponse = client.get("https://open.er-api.com/v6/latest/USD").body()
             if (response.result == "success") {
                 rates = response.rates
-                println("ExchangeRateUtil: Rates updated successfully from live API.")
+                println("ExchangeRateProvider: Rates updated successfully from live API.")
                 
                 // Save to cache
-                database?.saveExchangeRates(rates)
+                database.saveExchangeRates(rates)
             }
         } catch (e: Exception) {
-            println("ExchangeRateUtil: Failed to refresh rates: ${e.message}. Falling back to cache.")
+            println("ExchangeRateProvider: Failed to refresh rates: ${e.message}. Falling back to cache.")
             GlobalErrorHandler.handleError(Exception("Failed to fetch live rates. Using cached data.", e))
             
             // Attempt to load from cache if fetch fails
@@ -71,21 +65,18 @@ object ExchangeRateUtil {
         }
     }
 
-    private suspend fun loadFromCache() {
-        database?.let { db ->
-            val cachedRates = db.loadExchangeRates()
-            if (cachedRates.isNotEmpty()) {
-                rates = cachedRates
-                println("ExchangeRateUtil: Loaded rates from cache.")
-            } else {
-                println("ExchangeRateUtil: Cache is empty, using hardcoded defaults.")
-            }
+    suspend fun loadFromCache() {
+        val cachedRates = database.loadExchangeRates()
+        if (cachedRates.isNotEmpty()) {
+            rates = cachedRates
+            println("ExchangeRateProvider: Loaded rates from cache.")
+        } else {
+            println("ExchangeRateProvider: Cache is empty, using hardcoded defaults.")
         }
     }
     
     fun isAvailable(): Boolean {
-        // If we only have the default few rates, it might mean we've never synced
-        return rates.size > 10 || database != null
+        return rates.size > 10
     }
 
     fun convert(amount: Long, from: String, to: String): Long {

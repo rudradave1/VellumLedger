@@ -30,6 +30,12 @@ class LedgerApiTest {
         serverVersion = 0
     )
 
+    private class FakeSecureStorage : SecureStorage {
+        private val map = mutableMapOf<String, String?>()
+        override fun get(key: String): String? = map[key]
+        override fun set(key: String, value: String?) { map[key] = value }
+    }
+
     @Test
     fun testPushSuccess() = runTest {
         val mockEngine = MockEngine { _ ->
@@ -49,7 +55,7 @@ class LedgerApiTest {
             }
         }
 
-        val deviceIdentityManager = DeviceIdentityManager(InMemoryPreferencesDataStore())
+        val deviceIdentityManager = DeviceIdentityManager(InMemoryPreferencesDataStore(), FakeSecureStorage())
         val userSession = FakeUserSession(token = "token-123", userId = "user-123")
         val api = KtorLedgerApi(deviceIdentityManager, client, userSession)
         
@@ -92,7 +98,7 @@ class LedgerApiTest {
         }
 
         val api = KtorLedgerApi(
-            DeviceIdentityManager(InMemoryPreferencesDataStore()),
+            DeviceIdentityManager(InMemoryPreferencesDataStore(), FakeSecureStorage()),
             client,
             FakeUserSession(token = "token-123", userId = "user-123")
         )

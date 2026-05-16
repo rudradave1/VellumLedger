@@ -108,6 +108,9 @@ DELETE FROM cards WHERE id = ?;
 deleteTransaction:
 DELETE FROM transactions WHERE id = ?;
 
+deleteQueueItemsByEntityId:
+DELETE FROM sync_queue WHERE entity_id = ?;
+
 clearTransactions:
 DELETE FROM transactions;
 

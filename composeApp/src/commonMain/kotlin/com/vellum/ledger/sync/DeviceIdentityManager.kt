@@ -12,7 +12,10 @@ data class SavedSession(
     val userId: String,
 )
 
-class DeviceIdentityManager(private val dataStore: DataStore<Preferences>) {
+class DeviceIdentityManager(
+    private val dataStore: DataStore<Preferences>,
+    private val secureStorage: SecureStorage = com.vellum.ledger.data.createSecureStorage()
+) {
 
     private val deviceIdKey = stringPreferencesKey("device_id")
     private val deviceTokenKey = stringPreferencesKey("device_token")
@@ -28,15 +31,15 @@ class DeviceIdentityManager(private val dataStore: DataStore<Preferences>) {
     }
 
     suspend fun saveSession(token: String, userId: String) {
+        secureStorage.set("device_token", token)
         dataStore.edit {
-            it[deviceTokenKey] = token
             it[deviceUserIdKey] = userId
         }
     }
 
     suspend fun getSavedSession(): SavedSession? {
         val prefs = dataStore.data.first()
-        val token = prefs[deviceTokenKey] ?: return null
+        val token = secureStorage.get("device_token") ?: prefs[deviceTokenKey] ?: return null
         val userId = prefs[deviceUserIdKey] ?: return null
         return SavedSession(token = token, userId = userId)
     }

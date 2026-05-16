@@ -1,21 +1,20 @@
-package com.vellum.ledger.sync
+package com.vellum.ledger.domain.usecase
 
 import com.vellum.ledger.database.LedgerDatabase
+import com.vellum.ledger.sync.LedgerApi
+import com.vellum.ledger.sync.SyncResult
+import com.vellum.ledger.sync.SyncException
+import com.vellum.ledger.sync.SyncAcknowledgement
+import com.vellum.ledger.ui.util.GlobalErrorHandler
 import kotlinx.coroutines.delay
 import kotlin.math.pow
 import kotlin.random.Random
 
-data class SyncResult(
-    val attempted: Int,
-    val synced: Int,
-    val failed: Int,
-)
-
-class SyncWorker(
+class SyncTransactionsUseCase(
     private val database: LedgerDatabase,
-    private val api: LedgerApi,
+    private val api: LedgerApi
 ) {
-    suspend fun processQueue(): SyncResult {
+    suspend operator fun invoke(): SyncResult {
         val pendingItems = database.pendingQueueItems()
         if (pendingItems.isEmpty()) return SyncResult(0, 0, 0)
 
@@ -51,10 +50,6 @@ class SyncWorker(
                 }
 
                 val acknowledgements = if (response.acknowledgements.isEmpty()) {
-                    println(
-                        "SyncWorker: Backend returned success without acknowledgements; " +
-                            "treating all ${transactionsToSync.size} items as synced."
-                    )
                     transactionsToSync.map { tx ->
                         SyncAcknowledgement(
                             id = tx.id,
@@ -73,7 +68,7 @@ class SyncWorker(
                     
                     if (localTx != null && txAtStart != null) {
                         if (localTx.localVersion > txAtStart.localVersion) {
-                            println("SyncWorker: Conflict for ${ack.id}. Local v${localTx.localVersion} > Sync v${txAtStart.localVersion}. Re-sync required.")
+                            println("SyncTransactionsUseCase: Conflict for ${ack.id}. Local v${localTx.localVersion} > Sync v${txAtStart.localVersion}. Re-sync required.")
                             database.markPending(ack.id)
                         } else {
                             val queueItem = pendingItems.first { it.entityId == ack.id }
@@ -95,10 +90,9 @@ class SyncWorker(
                 )
             } catch (e: Throwable) {
                 retryCount++
-                println("SyncWorker: Attempt $retryCount failed: ${e.message}")
+                println("SyncTransactionsUseCase: Attempt $retryCount failed: ${e.message}")
                 
-                // Show a non-blocking error so the user knows why it's still "Syncing"
-                com.vellum.ledger.ui.util.GlobalErrorHandler.handleError(
+                GlobalErrorHandler.handleError(
                     Exception("Sync Attempt $retryCount failed. Retrying... (${e.message})")
                 )
 
