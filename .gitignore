@@ -17,5 +17,6 @@ captures
 !*.xcworkspace/contents.xcworkspacedata
 **/xcshareddata/WorkspaceSettings.xcsettings
 node_modules/
-20260516-214809-9ec16d6d-0bf8-4456-9c58-e2a19a605ff5/implementation_plan.artifact.md
-**/*.artifact.md
+*.jks
+*.keystore
+keystore.properties
